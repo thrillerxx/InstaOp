@@ -146,6 +146,7 @@ a { color: inherit; text-decoration: none; }
 .actions .push { margin-left: auto; }
 .actions button.liked { color: var(--heart); }
 .actions button.liked path { fill: var(--heart); stroke: var(--heart); }
+.actions button.saved path { fill: #fff; stroke: #fff; }
 
 .likes, .caption, .comments, .time {
   padding: 0 12px;
@@ -185,6 +186,16 @@ a { color: inherit; text-decoration: none; }
   position: fixed; inset: 0 0 calc(50px + env(safe-area-inset-bottom)); background: #000; z-index: 4; overflow: auto;
 }
 .overlay header { padding: 16px; border-bottom: 1px solid var(--line); }
+.overlay-head {
+  position: sticky; top: 0; z-index: 2; background: #000;
+  display: flex; align-items: center; gap: 10px;
+}
+.overlay-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.overlay-head #search-input { flex: 1; }
+.back {
+  width: 36px; height: 36px; padding: 0; border: 0; background: none;
+  color: #fff; font-size: 32px; line-height: 1; cursor: pointer;
+}
 .profile-head { display: flex; gap: 28px; padding: 20px 16px; align-items: flex-start; }
 .profile-head img.xl { width: 86px; height: 86px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
 .profile-head h2 { margin: 0 0 10px; font-size: 20px; font-weight: 400; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -276,7 +287,17 @@ a { color: inherit; text-decoration: none; }
   .column { width: var(--feed); padding: 16px 0 80px; border: 0; }
   .topbar { display: none; }
   .tabbar { display: none; }
-  .overlay { left: calc(50% - 508px); right: calc(50% - 508px); bottom: 0; max-width: 1016px; margin: 0 auto; }
+  .overlay {
+    left: 50%;
+    right: auto;
+    bottom: 0;
+    width: min(630px, calc(100vw - 160px));
+    max-width: 630px;
+    margin: 0;
+    transform: translateX(-50%);
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+  }
   .rail { padding: 36px 8px 24px 28px; }
   .me { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
   .me img { width: 44px; height: 44px; border-radius: 50%; }
@@ -310,7 +331,10 @@ a { color: inherit; text-decoration: none; }
 }
 
 @media (min-width: 1264px) {
-  .shell { grid-template-columns: 244px minmax(var(--feed), 630px) 340px; }
+  .shell {
+    grid-template-columns: 244px minmax(var(--feed), 630px) 340px;
+    max-width: 1260px;
+  }
   .sidenav { padding: 28px 12px 20px 16px; }
   .ig-logo { display: flex; justify-content: flex-start; align-items: center; gap: 10px; padding-left: 8px; }
   .ig-logo .mark { width: 36px; height: 36px; border-radius: 10px; }
@@ -435,3 +459,110 @@ a { color: inherit; text-decoration: none; }
   .topbar { padding-top: calc(8px + env(safe-area-inset-top)); }
 }
 .invoice textarea { width: 100%; min-height: 72px; margin: 10px 0; font-size: 12px; }
+
+.stats { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 10px; }
+.stats button, .stats span {
+  background: none; border: 0; color: inherit; padding: 0; font: inherit; cursor: pointer;
+}
+.stats b { margin-right: 4px; }
+
+.empty-box {
+  text-align: center; padding: 48px 24px; color: var(--muted);
+}
+.empty-box h3 { margin: 0 0 8px; color: #fff; font-size: 20px; font-weight: 600; }
+.empty-box p { margin: 0 0 16px; font-size: 14px; line-height: 1.45; }
+.empty-box .primary { width: auto; display: inline-block; padding: 8px 16px; }
+
+.skel {
+  background: linear-gradient(90deg, #111 25%, #1c1c1c 37%, #111 63%);
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+.skel-ava { width: 32px; height: 32px; border-radius: 50%; }
+.skel-line { height: 12px; border-radius: 6px; margin: 10px 12px; }
+.skel-media { aspect-ratio: 1; }
+.skel-post { pointer-events: none; }
+.w-40 { width: 40%; } .w-80 { width: 80%; } .w-120 { width: 120px; }
+@keyframes shimmer { to { background-position: -400% 0; } }
+
+.media { cursor: pointer; }
+.media .burst {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  pointer-events: none; z-index: 2;
+}
+.media .burst svg {
+  width: 88px; height: 88px; color: #fff;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,.45));
+  animation: burst .7s ease-out forwards;
+}
+@keyframes burst {
+  0% { transform: scale(.2); opacity: 0; }
+  28% { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(72px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  background: #262626; color: #fff; border-radius: 8px;
+  padding: 10px 16px; font-size: 14px; font-weight: 600;
+  z-index: 20; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+
+.post-modal {
+  position: fixed; inset: 0; z-index: 14;
+  background: rgba(0,0,0,.72);
+  display: grid; place-items: center;
+  padding: 24px 12px calc(24px + env(safe-area-inset-bottom));
+}
+.post-x {
+  position: absolute; top: 12px; right: 14px;
+  background: none; border: 0; color: #fff; font-size: 36px; line-height: 1; cursor: pointer;
+}
+.post-frame {
+  width: min(470px, 100%);
+  max-height: 92dvh;
+  overflow: auto;
+  background: #000;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.post-frame .post { border: 0; margin: 0; }
+
+.action-sheet {
+  position: fixed; inset: 0; z-index: 17;
+  background: rgba(0,0,0,.55);
+  display: grid; align-items: end; justify-items: center;
+}
+.action-card {
+  width: min(400px, 100%);
+  background: #262626;
+  border-radius: 16px 16px 0 0;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.action-card button {
+  width: 100%; padding: 15px 16px; background: none;
+  border: 0; border-bottom: 1px solid #363636;
+  color: #fff; font-size: 14px; cursor: pointer;
+}
+.action-card button.danger { color: #ed4956; font-weight: 600; }
+.action-card form { padding: 12px 16px 18px; display: grid; gap: 8px; }
+.action-card textarea {
+  width: 100%; min-height: 72px; background: #121212; border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px; color: #fff;
+}
+
+.thread img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+.sheet { z-index: 16; }
+
+@media (min-width: 1100px) {
+  .toast { bottom: 28px; }
+  .action-sheet { align-items: center; }
+  .action-card { border-radius: 16px; }
+  .post-modal { padding: 40px; }
+}
+
+@media (max-width: 540px) {
+  .post-frame { width: 100%; max-height: 100dvh; border: 0; border-radius: 0; }
+}

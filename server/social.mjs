@@ -129,6 +129,18 @@ export function createSocial(db, { dataDir, auth }) {
   const unreadCount = db.prepare(`SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL`);
   const markRead = db.prepare(`UPDATE notifications SET read_at = ? WHERE user_id = ? AND read_at IS NULL`);
   const followingIds = db.prepare(`SELECT followee_id FROM follows WHERE follower_id = ?`);
+  const listFollowers = db.prepare(`
+    SELECT u.* FROM follows f JOIN users u ON u.id = f.follower_id
+    WHERE f.followee_id = ? AND u.deleted_at IS NULL
+    ORDER BY f.created_at DESC
+    LIMIT 80
+  `);
+  const listFollowing = db.prepare(`
+    SELECT u.* FROM follows f JOIN users u ON u.id = f.followee_id
+    WHERE f.follower_id = ? AND u.deleted_at IS NULL
+    ORDER BY f.created_at DESC
+    LIMIT 80
+  `);
   const report = db.prepare(`
     INSERT INTO reports(id, reporter_id, post_id, target_user_id, reason, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
@@ -287,6 +299,16 @@ export function createSocial(db, { dataDir, auth }) {
       const user = findByUsername(username);
       if (!user || user.deleted_at) return null;
       return publicUser(user, viewerId);
+    },
+    followers(username, viewerId) {
+      const user = findByUsername(username);
+      if (!user || user.deleted_at) return null;
+      return listFollowers.all(user.id).map((row) => publicUser(row, viewerId));
+    },
+    following(username, viewerId) {
+      const user = findByUsername(username);
+      if (!user || user.deleted_at) return null;
+      return listFollowing.all(user.id).map((row) => publicUser(row, viewerId));
     },
     listSuggested(viewerId) {
       const rows = viewerId ? suggest.all(viewerId, viewerId) : listUsers.all().filter((u) => !u.is_system).slice(0, 8);
@@ -457,7 +479,11 @@ export function createSocial(db, { dataDir, auth }) {
           createdAt: row.created_at,
           read: Boolean(row.read_at),
           actor: row.actor_username
-            ? { username: row.actor_username, displayName: row.actor_display }
+            ? {
+                username: row.actor_username,
+                displayName: row.actor_display,
+                avatarUrl: `/media/avatar/${encodeURIComponent(row.actor_username)}`,
+              }
             : null,
         })),
       };

@@ -18,7 +18,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css?v=phase4" />
+    <link rel="stylesheet" href="/styles.css?v=polish" />
   </head>
   <body>
     <div class="shell">
@@ -76,7 +76,14 @@
         <button id="new-pill" class="new-pill hidden" type="button">New posts</button>
         <button id="install-pill" class="new-pill hidden" type="button">Install InstaOp</button>
         <section class="stories"><div id="stories" class="stories-row"></div></section>
-        <main id="feed" class="feed"></main>
+        <main id="feed" class="feed">
+          <article class="post skel-post" aria-hidden="true">
+            <header class="post-head"><div class="skel skel-ava"></div><div class="skel skel-line w-120"></div></header>
+            <div class="skel skel-media"></div>
+            <div class="skel skel-line w-40"></div>
+            <div class="skel skel-line w-80"></div>
+          </article>
+        </main>
       </div>
 
       <aside class="rail">
@@ -116,18 +123,29 @@
     </nav>
 
     <section id="search-view" class="overlay hidden">
-      <header><input id="search-input" type="search" placeholder="Search posts, #tags, or people" /></header>
+      <header class="overlay-head">
+        <button class="back" data-back type="button" aria-label="Back">‹</button>
+        <input id="search-input" type="search" placeholder="Search posts, #tags, or people" />
+      </header>
       <div id="tag-rail" class="tag-rail"></div>
       <div id="people-hits" class="people-hits"></div>
       <div id="search-grid" class="grid"></div>
     </section>
 
     <section id="profile-view" class="overlay hidden">
+      <header class="overlay-head">
+        <button class="back" data-back type="button" aria-label="Back">‹</button>
+        <h2 id="profile-title">Profile</h2>
+      </header>
       <header class="profile-head">
         <img id="profile-ava" class="xl" src="/opreturn-avatar.svg" alt="">
         <div>
           <h2><span id="profile-user">OP_RETURN_Bot</span> <button id="profile-follow" class="follow" type="button">Follow</button></h2>
-          <p><b id="stat-posts">0</b> posts &nbsp; <b id="stat-followers">0</b> followers &nbsp; <b id="stat-following">0</b> following</p>
+          <p class="stats">
+            <span><b id="stat-posts">0</b> posts</span>
+            <button id="stat-followers-btn" type="button"><b id="stat-followers">0</b> followers</button>
+            <button id="stat-following-btn" type="button"><b id="stat-following">0</b> following</button>
+          </p>
           <p><b id="profile-name">OP_RETURN Bo</b><br><span id="profile-city">Bitcoin mainnet</span><br><span id="profile-bio"></span></p>
           <a id="profile-site" class="profile-site hidden" target="_blank" rel="noopener noreferrer"></a>
           <div id="profile-actions" class="profile-actions"></div>
@@ -141,12 +159,18 @@
     </section>
 
     <section id="notes-view" class="overlay hidden">
-      <header><h2>Notifications</h2></header>
+      <header class="overlay-head">
+        <button class="back" data-back type="button" aria-label="Back">‹</button>
+        <h2>Notifications</h2>
+      </header>
       <div id="notes-list" class="inbox"></div>
     </section>
 
     <section id="settings-view" class="overlay hidden">
-      <header><h2>Settings</h2></header>
+      <header class="overlay-head">
+        <button class="back" data-back type="button" aria-label="Back">‹</button>
+        <h2>Settings</h2>
+      </header>
       <form id="settings-form" class="auth-form pad">
         <label>Display name <input id="set-name" maxlength="40" /></label>
         <label>Bio <textarea id="set-bio" maxlength="160"></textarea></label>
@@ -253,6 +277,25 @@
       </section>
     </div>
 
+    <div id="toast" class="toast hidden" role="status"></div>
+
+    <div id="post-view" class="post-modal hidden" role="dialog" aria-modal="true">
+      <button id="post-close" class="post-x" type="button" aria-label="Close">×</button>
+      <div id="post-body" class="post-frame"></div>
+    </div>
+
+    <div id="action-view" class="action-sheet hidden">
+      <div id="action-list" class="action-card"></div>
+    </div>
+
+    <div id="people-view" class="sheet hidden">
+      <header>
+        <strong id="people-title">People</strong>
+        <button id="people-close" type="button">Close</button>
+      </header>
+      <div id="people-list"></div>
+    </div>
+
     <div id="comments-view" class="sheet hidden">
       <header>
         <strong>Comments</strong>
@@ -277,8 +320,8 @@
       <button id="story-next" class="hit right" type="button" aria-label="Next"></button>
     </div>
 
-    <script src="/optimizer.js?v=phase4"></script>
-    <script src="/composer.js?v=phase4"></script>
-    <script src="/app.js?v=phase4"></script>
+    <script src="/optimizer.js?v=polish"></script>
+    <script src="/composer.js?v=polish"></script>
+    <script src="/app.js?v=polish"></script>
   </body>
 </html>

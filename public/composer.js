@@ -195,7 +195,10 @@
   });
   $("co-slider").addEventListener("input", (event) => setSlider(event.target.value));
   $("co-save").addEventListener("click", () => {
-    saveText().then(loadQueue).catch((err) => {
+    saveText().then(() => {
+      loadQueue();
+      window.InstaOpToast?.("Draft saved");
+    }).catch((err) => {
       $("co-error").textContent = err.message;
       $("co-error").classList.remove("hidden");
     });
@@ -292,6 +295,9 @@
     }
   });
   $("co-copy-inv").addEventListener("click", async () => {
-    if ($("co-bolt11").value) await navigator.clipboard.writeText($("co-bolt11").value);
+    if ($("co-bolt11").value) {
+      await navigator.clipboard.writeText($("co-bolt11").value);
+      window.InstaOpToast?.("Invoice copied");
+    }
   });
 })();

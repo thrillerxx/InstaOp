@@ -105,6 +105,11 @@ try {
   const officialSvg = await officialAva.text();
   assert(officialAva.ok && officialSvg.includes("M32 4 57 17"), "official cube avatar");
 
+  const one = await req("/api/posts/ev1");
+  assert(one.body.post?.id === "ev1", "single post permalink");
+  const missing = await req("/api/posts/nope");
+  assert(missing.res.status === 404, "missing post 404");
+
   const feed = await req("/api/feed?tab=live");
   assert(feed.body.posts.length === 1, `live hides demo, got ${feed.body.posts.length}`);
   assert(feed.body.posts[0].author.username === "OP_RETURN_Bot", "imported post owned by official");
@@ -174,6 +179,11 @@ try {
   const bobProfile = await req("/api/users/bob", { headers: { cookie: aliceCookie } });
   assert(bobProfile.body.user.viewerFollows === true, "follow works");
   assert(bobProfile.body.user.followerCount === 1, "follower count");
+  const bobFollowers = await req("/api/users/bob/followers");
+  assert(bobFollowers.body.users.some((row) => row.username === "alice"), "followers list");
+  const aliceFollowing = await req("/api/users/alice/following", { headers: { cookie: aliceCookie } });
+  assert(aliceFollowing.body.users.some((row) => row.username === "bob"), "following includes bob");
+  assert(aliceFollowing.body.users.some((row) => row.username === "OP_RETURN_Bot"), "following includes official");
 
   const siteOk = await req("/api/me", {
     method: "PATCH",

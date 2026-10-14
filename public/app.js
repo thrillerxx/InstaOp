@@ -12,6 +12,8 @@ let profileUser = "OP_RETURN_Bot";
 let profileMode = "posts";
 let openCommentsId = "";
 let notes = { unread: 0, items: [] };
+let lastTap = { id: "", at: 0 };
+let toastTimer = null;
 
 const feedEl = document.getElementById("feed");
 const storiesEl = document.getElementById("stories");
@@ -77,6 +79,25 @@ function linkify(text) {
     .replace(/(^|[^a-zA-Z0-9_])#([a-zA-Z0-9_]{2,32})\b/g, '$1<button type="button" class="hash" data-tag="$2">#$2</button>');
 }
 
+function toast(message) {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add("hidden"), 1800);
+}
+window.InstaOpToast = toast;
+
+function timeLine(post) {
+  const bits = [timeAgo(post.created_at)];
+  if (post.txid) bits.push(`<a href="https://mempool.space/tx/${escapeHtml(post.txid)}" target="_blank" rel="noopener">View transaction</a>`);
+  if (post.bytes) bits.push(`${post.bytes} bytes`);
+  if (post.confirmed === true) bits.push("confirmed");
+  if (post.confirmed === false) bits.push("in mempool");
+  return bits.join(" · ");
+}
+
 function siteLabel(url) {
   try {
     const parsed = new URL(url);
@@ -106,9 +127,21 @@ function upsert(post, fromLive) {
     return;
   }
   renderAll();
+  refreshOpenPost(post.id);
   if (fromLive && !existed && feedTab === "live" && !userPinned) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+}
+
+function refreshOpenPost(id) {
+  const pane = document.getElementById("post-view");
+  if (!pane || pane.classList.contains("hidden")) return;
+  const body = document.getElementById("post-body");
+  if (body.querySelector(".post")?.dataset.id !== id) return;
+  const current = posts.get(id);
+  if (!current) return;
+  body.innerHTML = card(current);
+  wireCards(body);
 }
 
 function media(post) {
@@ -140,13 +173,13 @@ function card(post) {
         <button class="like${post.liked ? " liked" : ""}" type="button" aria-label="Like">${heart}</button>
         <button class="open-comments" type="button" aria-label="Comment"><svg viewBox="0 0 24 24"><path d="M4.4 5.2h15.2v10.4H8.2L4.4 19V5.2Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <button class="share" type="button" aria-label="Share"><svg viewBox="0 0 24 24"><path d="m4 10.2 16-6.2-6.4 16.2-3.2-7.2L4 10.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button>
-        <button class="save${post.saved ? " liked" : ""} push" type="button" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M6.2 4.4h11.6v15.2L12 16.2 6.2 19.6V4.4Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
+        <button class="save${post.saved ? " saved" : ""} push" type="button" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M6.2 4.4h11.6v15.2L12 16.2 6.2 19.6V4.4Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
       </div>
       <p class="likes">${likes ? `${likes.toLocaleString()} like${likes === 1 ? "" : "s"}` : "Be the first to like this"}</p>
       <p class="caption"><b>${escapeHtml(author.username)}</b><span class="${long ? "clamp" : ""}">${linkify(post.message)} ${linkify(post.note || "")} <span class="tags">${tags}</span></span>${long ? ` <button class="more" type="button">more</button>` : ""}</p>
       <p class="source">${escapeHtml(post.attribution || "")}</p>
       <button class="comments open-comments" type="button">${comments ? `View ${comments} comment${comments === 1 ? "" : "s"}` : "Add a comment"}</button>
-      <time class="time">${timeAgo(post.created_at)}${post.txid ? ` · <a href="https://mempool.space/tx/${post.txid}" target="_blank" rel="noopener">View transaction</a>` : ""}${post.bytes ? ` · ${post.bytes} bytes` : ""}${post.confirmed === true ? " · confirmed" : post.confirmed === false ? " · in mempool" : ""}</time>
+      <time class="time" data-ts="${post.created_at}">${timeLine(post)}</time>
     </article>`;
 }
 
@@ -159,9 +192,26 @@ function renderAll() {
 
 function emptyFeed() {
   if (feedTab === "home" && !me) {
-    return `<p class="empty">Sign in to follow people. Live still shows every imported OP_RETURN.</p>`;
+    return `<div class="empty-box"><h3>Home is for people you follow</h3><p>Sign in to follow accounts. Live still shows every imported OP_RETURN.</p><button class="primary" data-auth type="button">Sign in</button></div>`;
   }
-  return `<p class="empty">No posts here yet.</p>`;
+  if (feedTab === "home") {
+    return `<div class="empty-box"><h3>Nothing new from people you follow</h3><p>@OP_RETURN_Bot stays on Home. Open Live for the full chain feed.</p></div>`;
+  }
+  return `<div class="empty-box"><h3>No posts here yet</h3><p>When a confirmed OP_RETURN lands, it shows up here.</p></div>`;
+}
+
+function skeletonFeed() {
+  return `<article class="post skel-post" aria-hidden="true">
+    <header class="post-head"><div class="skel skel-ava"></div><div class="skel skel-line w-120"></div></header>
+    <div class="skel skel-media"></div>
+    <div class="skel skel-line w-40"></div>
+    <div class="skel skel-line w-80"></div>
+  </article>
+  <article class="post skel-post" aria-hidden="true">
+    <header class="post-head"><div class="skel skel-ava"></div><div class="skel skel-line w-120"></div></header>
+    <div class="skel skel-media"></div>
+    <div class="skel skel-line w-40"></div>
+  </article>`;
 }
 
 function renderChrome() {
@@ -217,9 +267,10 @@ function renderSuggested(users) {
 function renderNotes() {
   document.getElementById("notes-list").innerHTML = (notes.items || []).map((item) => `
     <button class="thread" data-post="${item.postId || ""}" type="button">
+      <img src="${avatar(item.actor)}" alt="">
       <div><strong>${escapeHtml(item.actor?.username || "InstaOp")}</strong>
       <small>${escapeHtml(noteText(item))} · ${timeAgo(item.createdAt)}</small></div>
-    </button>`).join("") || `<p class="empty">No notifications yet.</p>`;
+    </button>`).join("") || `<div class="empty-box"><h3>No notifications yet</h3><p>Likes, comments, follows, and mentions land here.</p></div>`;
 }
 
 function noteText(item) {
@@ -230,38 +281,47 @@ function noteText(item) {
   return item.kind;
 }
 
-function wireCards() {
-  feedEl.querySelectorAll(".more").forEach((btn) => {
+function wireCards(root = feedEl) {
+  root.querySelectorAll(".more").forEach((btn) => {
     btn.addEventListener("click", () => {
       const span = btn.parentElement.querySelector(".clamp");
       if (span) span.classList.remove("clamp");
       btn.remove();
     });
   });
-  feedEl.querySelectorAll(".like").forEach((btn) => {
+  root.querySelectorAll(".like").forEach((btn) => {
     btn.addEventListener("click", () => toggleLike(btn.closest(".post").dataset.id));
   });
-  feedEl.querySelectorAll(".save").forEach((btn) => {
+  root.querySelectorAll(".save").forEach((btn) => {
     btn.addEventListener("click", () => toggleSave(btn.closest(".post").dataset.id));
   });
-  feedEl.querySelectorAll(".open-comments").forEach((btn) => {
+  root.querySelectorAll(".open-comments").forEach((btn) => {
     btn.addEventListener("click", () => openComments(btn.closest(".post").dataset.id));
   });
-  feedEl.querySelectorAll(".share").forEach((btn) => {
+  root.querySelectorAll(".share").forEach((btn) => {
     btn.addEventListener("click", () => sharePost(btn.closest(".post").dataset.id));
   });
-  feedEl.querySelectorAll("[data-tag]").forEach((btn) => {
+  root.querySelectorAll("[data-tag]").forEach((btn) => {
     btn.addEventListener("click", () => openTag(btn.dataset.tag));
   });
-  feedEl.querySelectorAll(".mention").forEach((btn) => {
+  root.querySelectorAll(".mention").forEach((btn) => {
     btn.addEventListener("click", () => openProfile(btn.dataset.user));
   });
-  feedEl.querySelectorAll(".more-btn").forEach((btn) => {
-    btn.addEventListener("click", () => moreMenu(btn.dataset.user));
+  root.querySelectorAll(".more-btn").forEach((btn) => {
+    btn.addEventListener("click", () => moreMenu(btn.dataset.user, btn.closest(".post")?.dataset.id));
   });
-  document.querySelectorAll("[data-user]").forEach((btn) => {
-    if (btn.classList.contains("follow-user") || btn.classList.contains("more-btn")) return;
+  root.querySelectorAll(".media").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      event.preventDefault();
+      tapMedia(el.closest(".post").dataset.id, el);
+    });
+  });
+  root.querySelectorAll("[data-user]").forEach((btn) => {
+    if (btn.classList.contains("follow-user") || btn.classList.contains("more-btn") || btn.classList.contains("mention")) return;
     btn.addEventListener("click", () => openProfile(btn.dataset.user));
+  });
+  root.querySelectorAll("[data-auth]").forEach((btn) => {
+    btn.addEventListener("click", () => openModal("auth-view"));
   });
 }
 
@@ -285,23 +345,148 @@ async function sharePost(id) {
   const url = `${location.origin}${location.pathname}#/p/${id}`;
   try {
     await navigator.clipboard.writeText(url);
-    newPill.textContent = "Link copied";
-    newPill.classList.remove("hidden");
-    setTimeout(() => { if (!waiting) newPill.classList.add("hidden"); }, 1600);
+    toast("Link copied");
   } catch {
     window.prompt("Copy post link", url);
   }
 }
 
-function moreMenu(username) {
-  if (!needAuth("Sign in to report or block.")) return;
-  const reason = window.prompt(`Report @${username}? Describe the issue, or type BLOCK to block.`);
-  if (!reason) return;
-  if (reason.trim().toUpperCase() === "BLOCK") {
-    api(`/api/users/${encodeURIComponent(username)}/block`, { method: "POST", body: "{}" }).then(loadFeed).catch(showError);
+function burstHeart(mediaEl) {
+  const burst = document.createElement("div");
+  burst.className = "burst";
+  burst.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12.1 20.6S4.4 15.7 3.2 11.6C2.2 8.4 4 5.6 7.1 5.6c1.8 0 3.1 1.1 3.9 2.2.8-1.1 2.1-2.2 3.9-2.2 3.1 0 4.9 2.8 3.9 6-1.2 4.1-8.7 9-8.7 9Z" fill="#fff"/></svg>`;
+  mediaEl.appendChild(burst);
+  setTimeout(() => burst.remove(), 700);
+}
+
+function tapMedia(id, mediaEl) {
+  const now = Date.now();
+  if (lastTap.id === id && now - lastTap.at < 320) {
+    lastTap = { id: "", at: 0 };
+    burstHeart(mediaEl);
+    const post = posts.get(id);
+    if (!post?.liked) toggleLike(id);
     return;
   }
-  api("/api/report", { method: "POST", body: JSON.stringify({ username, reason }) }).catch(showError);
+  lastTap = { id, at: now };
+  setTimeout(() => {
+    if (lastTap.id === id && Date.now() - lastTap.at >= 320) openPost(id);
+  }, 320);
+}
+
+async function openPost(id) {
+  let post = posts.get(id);
+  if (!post) {
+    try {
+      const data = await api(`/api/posts/${encodeURIComponent(id)}`);
+      post = data.post;
+      posts.set(id, post);
+    } catch {
+      toast("Post not found");
+      return;
+    }
+  }
+  const pane = document.getElementById("post-view");
+  document.getElementById("post-body").innerHTML = card(post);
+  pane.classList.remove("hidden");
+  history.replaceState(null, "", `#/p/${id}`);
+  wireCards(document.getElementById("post-body"));
+}
+
+function closePost() {
+  document.getElementById("post-view").classList.add("hidden");
+}
+
+function closeAction() {
+  document.getElementById("action-view").classList.add("hidden");
+}
+
+function closePeople() {
+  document.getElementById("people-view").classList.add("hidden");
+}
+
+function moreMenu(username, postId) {
+  const sheet = document.getElementById("action-view");
+  const list = document.getElementById("action-list");
+  const post = postId ? posts.get(postId) : null;
+  const canModerate = Boolean(me && username && username !== me.username && username !== "OP_RETURN_Bot");
+  list.innerHTML = `
+    <button type="button" data-act="copy">Copy link</button>
+    ${post?.txid ? `<button type="button" data-act="tx">View transaction</button>` : ""}
+    <button type="button" data-act="profile">View profile</button>
+    ${canModerate ? `<button class="danger" type="button" data-act="report">Report</button><button class="danger" type="button" data-act="block">Block</button>` : ""}
+    <button type="button" data-act="cancel">Cancel</button>
+    <form id="report-form" class="hidden">
+      <textarea id="report-reason" maxlength="400" placeholder="Why are you reporting this?"></textarea>
+      <button class="primary" type="submit">Send report</button>
+    </form>`;
+  sheet.classList.remove("hidden");
+  list.onclick = async (event) => {
+    const act = event.target.closest("[data-act]")?.dataset.act;
+    if (!act) return;
+    if (act === "cancel") return closeAction();
+    if (act === "copy") {
+      await sharePost(postId || "");
+      return closeAction();
+    }
+    if (act === "tx" && post?.txid) {
+      window.open(`https://mempool.space/tx/${post.txid}`, "_blank", "noopener");
+      return;
+    }
+    if (act === "profile") {
+      closeAction();
+      return openProfile(username);
+    }
+    if (act === "report") {
+      if (!needAuth("Sign in to report.")) return;
+      document.getElementById("report-form").classList.remove("hidden");
+      document.getElementById("report-reason").focus();
+      return;
+    }
+    if (act === "block") {
+      if (!needAuth("Sign in to block.")) return;
+      if (!window.confirm(`Block @${username}? Their posts will disappear from your feeds.`)) return;
+      try {
+        await api(`/api/users/${encodeURIComponent(username)}/block`, { method: "POST", body: "{}" });
+        closeAction();
+        toast(`Blocked @${username}`);
+        loadFeed();
+      } catch (err) {
+        toast(err.message);
+      }
+    }
+  };
+  document.getElementById("report-form").onsubmit = async (event) => {
+    event.preventDefault();
+    try {
+      await api("/api/report", {
+        method: "POST",
+        body: JSON.stringify({ username, postId, reason: document.getElementById("report-reason").value }),
+      });
+      closeAction();
+      toast("Report sent");
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+}
+
+async function openPeople(kind) {
+  const title = kind === "following" ? "Following" : "Followers";
+  document.getElementById("people-title").textContent = title;
+  const data = await api(`/api/users/${encodeURIComponent(profileUser)}/${kind}`);
+  document.getElementById("people-list").innerHTML = (data.users || []).map((p) => `
+    <button class="thread" data-user="${escapeHtml(p.username)}" type="button">
+      <img src="${avatar(p)}" alt="">
+      <div><strong>${escapeHtml(p.username)}</strong><small>${escapeHtml(p.displayName)}</small></div>
+    </button>`).join("") || `<div class="empty-box"><h3>No one here yet</h3></div>`;
+  document.getElementById("people-list").querySelectorAll("[data-user]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      closePeople();
+      openProfile(btn.dataset.user);
+    });
+  });
+  document.getElementById("people-view").classList.remove("hidden");
 }
 
 async function openComments(id) {
@@ -351,6 +536,9 @@ async function loadExplore() {
 }
 
 function go(view, extra) {
+  closeAction();
+  closePeople();
+  if (view !== "create") closePost();
   searchView.classList.toggle("hidden", view !== "explore");
   profileView.classList.toggle("hidden", view !== "profile");
   notesView.classList.toggle("hidden", view !== "notifications");
@@ -392,6 +580,9 @@ function closeModal(id) {
 }
 
 async function openProfile(username) {
+  closePost();
+  closeAction();
+  closePeople();
   profileUser = username;
   profileView.classList.remove("hidden");
   searchView.classList.add("hidden");
@@ -402,6 +593,8 @@ async function openProfile(username) {
   const user = data.user;
   document.getElementById("profile-ava").src = avatar(user);
   document.getElementById("profile-user").textContent = user.username;
+  const title = document.getElementById("profile-title");
+  if (title) title.textContent = user.username;
   document.getElementById("profile-name").textContent = user.displayName;
   document.getElementById("profile-city").textContent = user.city || "";
   document.getElementById("profile-bio").textContent = user.bio || "";
@@ -481,6 +674,7 @@ async function loadMe() {
 }
 
 async function loadFeed() {
+  if (!posts.size) feedEl.innerHTML = skeletonFeed();
   const tab = feedTab === "home" && me ? "home" : "live";
   const data = await api(`/api/feed?tab=${tab}`);
   posts.clear();
@@ -523,7 +717,7 @@ async function boot() {
   if (route === "/explore") go("explore");
   if (route === "/notifications") go("notifications");
   if (route === "/settings") go("settings");
-  if (route.startsWith("/p/")) openComments(route.slice(3));
+  if (route.startsWith("/p/")) openPost(route.slice(3));
   const src = new EventSource("/api/stream");
   let opened = false;
   src.onmessage = (event) => {
@@ -565,11 +759,11 @@ storiesEl.addEventListener("click", (event) => {
 });
 searchGrid.addEventListener("click", (e) => {
   const cell = e.target.closest("[data-id]");
-  if (cell) openComments(cell.dataset.id);
+  if (cell) openPost(cell.dataset.id);
 });
 profileGrid.addEventListener("click", (e) => {
   const cell = e.target.closest("[data-id]");
-  if (cell) openComments(cell.dataset.id);
+  if (cell) openPost(cell.dataset.id);
 });
 searchInput.addEventListener("input", async () => {
   const value = searchInput.value.trim();
@@ -592,6 +786,36 @@ window.addEventListener("scroll", () => {
   userPinned = window.scrollY > 240;
 }, { passive: true });
 
+document.querySelectorAll("[data-back]").forEach((btn) => {
+  btn.addEventListener("click", () => go("home"));
+});
+document.getElementById("post-close").addEventListener("click", closePost);
+document.getElementById("post-view").addEventListener("click", (event) => {
+  if (event.target.id === "post-view") closePost();
+});
+document.getElementById("action-view").addEventListener("click", (event) => {
+  if (event.target.id === "action-view") closeAction();
+});
+document.getElementById("people-close").addEventListener("click", closePeople);
+document.getElementById("stat-followers-btn").addEventListener("click", () => openPeople("followers"));
+document.getElementById("stat-following-btn").addEventListener("click", () => openPeople("following"));
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!document.getElementById("create-view").classList.contains("hidden")) {
+    window.InstaOpComposer?.close();
+    return;
+  }
+  if (!document.getElementById("action-view").classList.contains("hidden")) return closeAction();
+  if (!document.getElementById("people-view").classList.contains("hidden")) return closePeople();
+  if (!document.getElementById("comments-view").classList.contains("hidden")) {
+    document.getElementById("comments-view").classList.add("hidden");
+    return;
+  }
+  if (!document.getElementById("post-view").classList.contains("hidden")) return closePost();
+  if (!document.getElementById("story-viewer").classList.contains("hidden")) return closeStory();
+  if (!document.getElementById("auth-view").classList.contains("hidden")) return closeModal("auth-view");
+  go("home");
+});
 document.getElementById("me-switch").addEventListener("click", () => {
   if (me) go("settings");
   else openModal("auth-view");
@@ -668,6 +892,11 @@ document.getElementById("profile-follow").addEventListener("click", async () => 
   openProfile(username);
 });
 document.getElementById("suggested").addEventListener("click", async (event) => {
+  const who = event.target.closest("[data-user]:not(.follow-user)");
+  if (who && !event.target.closest(".follow-user")) {
+    openProfile(who.dataset.user);
+    return;
+  }
   const btn = event.target.closest(".follow-user");
   if (!btn) return;
   if (!needAuth("Sign in to follow people.")) return;

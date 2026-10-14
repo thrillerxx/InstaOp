@@ -413,6 +413,20 @@ export function createApp(options = {}) {
         return sendJson(res, 200, social.block(user.id, username));
       }
 
+      if (path.startsWith("/api/users/") && path.endsWith("/followers") && req.method === "GET") {
+        const username = decodeURIComponent(path.slice("/api/users/".length, -"/followers".length));
+        const users = social.followers(username, user?.id || null);
+        if (!users) return sendJson(res, 404, { error: "Account not found." });
+        return sendJson(res, 200, { users });
+      }
+
+      if (path.startsWith("/api/users/") && path.endsWith("/following") && req.method === "GET") {
+        const username = decodeURIComponent(path.slice("/api/users/".length, -"/following".length));
+        const users = social.following(username, user?.id || null);
+        if (!users) return sendJson(res, 404, { error: "Account not found." });
+        return sendJson(res, 200, { users });
+      }
+
       if (path === "/api/users" && req.method === "GET") {
         return sendJson(res, 200, { users: social.searchUsers(url.searchParams.get("q") || "") });
       }
@@ -432,6 +446,15 @@ export function createApp(options = {}) {
           .map((post) => decorate(post, user))
           .filter(Boolean);
         return sendJson(res, 200, { user: { ...profile, postCount: posts.length }, posts });
+      }
+
+      if (path.startsWith("/api/posts/") && req.method === "GET") {
+        const rest = decodeURIComponent(path.slice("/api/posts/".length));
+        if (!rest.includes("/")) {
+          const post = decorate(store.get(rest), user);
+          if (!post) return sendJson(res, 404, { error: "Post not found." });
+          return sendJson(res, 200, { post });
+        }
       }
 
       if (path.startsWith("/api/posts/") && path.endsWith("/like") && req.method === "POST") {
