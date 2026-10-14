@@ -115,7 +115,7 @@ Limits:
 1. **Done** — accounts, profiles, follows, likes, comments, saves, notifications, profile photos, `@OP_RETURN_Bot` import, Home / Live / Explore.
 2. **Now** — text + image drafts, client-side byte optimizer, unpublished queue, fee *estimate* only. No invoices.
 3. **Now** — Lightning invoices via OP_RETURN Bot (`/api/unified` for text, `/createRequest` multipart `file` for images). InstaOp does not run LND. Tests use a mock bot. A public post still requires a mempool confirmation, not just broadcast.
-4. **Polish** — hashtag explorer, mentions, AI shortening / art, mobile motion.
+4. **Now** — hashtag explorer, clickable `@mentions`, confirm-time mempool card refresh, optional AI shorten/art when a server key is set. PWA / mobile is live.
 
 Phase 2 payload rules:
 

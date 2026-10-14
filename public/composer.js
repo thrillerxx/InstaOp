@@ -45,7 +45,7 @@
     const pct = Math.min(100, Math.round((n / max) * 100));
     $("co-meter").style.width = `${pct}%`;
     $("co-meter").classList.toggle("over", n > max);
-    $("co-shorten").classList.toggle("hidden", utf8(statement) <= max);
+    $("co-shorten").classList.toggle("hidden", utf8(statement) < 8);
   }
 
   function renderCompare() {
@@ -211,7 +211,7 @@
     const data = await api("/api/publish/shorten", { method: "POST", body: JSON.stringify({ statement: $("co-statement").value }) });
     $("co-suggest").classList.remove("hidden");
     $("co-suggest-body").textContent = data.suggested;
-    $("co-suggest-meta").textContent = `${data.originalBytes} → ${data.suggestedBytes} bytes · save ${data.savings}`;
+    $("co-suggest-meta").textContent = `${data.originalBytes} → ${data.suggestedBytes} bytes · save ${data.savings}${data.engine === "ai" ? " · AI" : ""}`;
     $("co-accept-short").onclick = () => {
       $("co-statement").value = data.suggested;
       $("co-suggest").classList.add("hidden");

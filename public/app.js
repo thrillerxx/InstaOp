@@ -71,6 +71,12 @@ function avatar(user) {
   return user?.avatarUrl || `/media/avatar/${encodeURIComponent(user?.username || "guest")}`;
 }
 
+function linkify(text) {
+  return escapeHtml(String(text || ""))
+    .replace(/(^|[^a-zA-Z0-9_])@([a-zA-Z0-9._]{3,24})\b/g, '$1<button type="button" class="mention" data-user="$2">@$2</button>')
+    .replace(/(^|[^a-zA-Z0-9_])#([a-zA-Z0-9_]{2,32})\b/g, '$1<button type="button" class="hash" data-tag="$2">#$2</button>');
+}
+
 function siteLabel(url) {
   try {
     const parsed = new URL(url);
@@ -137,7 +143,7 @@ function card(post) {
         <button class="save${post.saved ? " liked" : ""} push" type="button" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M6.2 4.4h11.6v15.2L12 16.2 6.2 19.6V4.4Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
       </div>
       <p class="likes">${likes ? `${likes.toLocaleString()} like${likes === 1 ? "" : "s"}` : "Be the first to like this"}</p>
-      <p class="caption"><b>${escapeHtml(author.username)}</b><span class="${long ? "clamp" : ""}">${escapeHtml(post.message)} ${escapeHtml(post.note || "")} <span class="tags">${tags}</span></span>${long ? ` <button class="more" type="button">more</button>` : ""}</p>
+      <p class="caption"><b>${escapeHtml(author.username)}</b><span class="${long ? "clamp" : ""}">${linkify(post.message)} ${linkify(post.note || "")} <span class="tags">${tags}</span></span>${long ? ` <button class="more" type="button">more</button>` : ""}</p>
       <p class="source">${escapeHtml(post.attribution || "")}</p>
       <button class="comments open-comments" type="button">${comments ? `View ${comments} comment${comments === 1 ? "" : "s"}` : "Add a comment"}</button>
       <time class="time">${timeAgo(post.created_at)}${post.txid ? ` · <a href="https://mempool.space/tx/${post.txid}" target="_blank" rel="noopener">View transaction</a>` : ""}${post.bytes ? ` · ${post.bytes} bytes` : ""}${post.confirmed === true ? " · confirmed" : post.confirmed === false ? " · in mempool" : ""}</time>
@@ -183,7 +189,7 @@ function renderGrids() {
 }
 
 function renderMe() {
-  const ava = me ? avatar(me) : "/logo.svg";
+  const ava = me ? avatar(me) : "/logo.png";
   document.getElementById("me-ava").src = ava;
   document.getElementById("nav-ava").src = ava;
   document.getElementById("tab-ava").src = ava;
@@ -247,6 +253,9 @@ function wireCards() {
   feedEl.querySelectorAll("[data-tag]").forEach((btn) => {
     btn.addEventListener("click", () => openTag(btn.dataset.tag));
   });
+  feedEl.querySelectorAll(".mention").forEach((btn) => {
+    btn.addEventListener("click", () => openProfile(btn.dataset.user));
+  });
   feedEl.querySelectorAll(".more-btn").forEach((btn) => {
     btn.addEventListener("click", () => moreMenu(btn.dataset.user));
   });
@@ -299,10 +308,16 @@ async function openComments(id) {
   openCommentsId = id;
   const data = await api(`/api/posts/${encodeURIComponent(id)}/comments`);
   document.getElementById("comments-list").innerHTML = data.comments.map((row) => `
-    <p class="comment"><b>${escapeHtml(row.author.username)}</b>${escapeHtml(row.body)}
+    <p class="comment"><b>${escapeHtml(row.author.username)}</b> ${linkify(row.body)}
     ${me && row.author.username === me.username ? `<button data-del="${row.id}" type="button">delete</button>` : ""}</p>`).join("") || `<p class="empty">No comments yet.</p>`;
   document.getElementById("comments-view").classList.remove("hidden");
   document.getElementById("comment-form").classList.toggle("hidden", !me);
+  document.getElementById("comments-list").querySelectorAll(".mention").forEach((btn) => {
+    btn.addEventListener("click", () => openProfile(btn.dataset.user));
+  });
+  document.getElementById("comments-list").querySelectorAll("[data-tag]").forEach((btn) => {
+    btn.addEventListener("click", () => openTag(btn.dataset.tag));
+  });
   document.getElementById("comments-list").querySelectorAll("[data-del]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       await api(`/api/comments/${btn.dataset.del}`, { method: "DELETE" });
@@ -313,8 +328,25 @@ async function openComments(id) {
 
 function openTag(tag) {
   filterTag = tag.replace(/^#/, "");
+  filterQuery = "";
   searchInput.value = `#${filterTag}`;
   go("explore");
+  history.replaceState(null, "", `#/tag/${encodeURIComponent(filterTag)}`);
+  loadExplore();
+}
+
+async function loadExplore() {
+  const data = await api("/api/tags");
+  const rail = document.getElementById("tag-rail");
+  const active = filterTag.toLowerCase();
+  rail.innerHTML = (data.tags || []).map((row) =>
+    `<button type="button" data-tag="${escapeHtml(row.tag)}" class="${row.tag.toLowerCase() === active ? "on" : ""}">#${escapeHtml(row.tag)} ${row.count}</button>`
+  ).join("");
+  rail.querySelectorAll("[data-tag]").forEach((btn) => {
+    btn.addEventListener("click", () => openTag(btn.dataset.tag));
+  });
+  const feed = await api("/api/feed?tab=live");
+  feed.posts.forEach((post) => posts.set(post.id, post));
   renderAll();
 }
 
@@ -333,7 +365,10 @@ function go(view, extra) {
     loadFeed();
     history.replaceState(null, "", view === "live" ? "#/live" : "#/");
   }
-  if (view === "explore") history.replaceState(null, "", "#/explore");
+  if (view === "explore") {
+    if (!filterTag) history.replaceState(null, "", "#/explore");
+    loadExplore();
+  }
   if (view === "notifications") {
     loadNotes(true);
     history.replaceState(null, "", "#/notifications");
@@ -480,6 +515,11 @@ async function boot() {
   const status = await api("/api/status");
   liveBadge.classList.toggle("on", status.live);
   if (route.startsWith("/u/")) openProfile(profileUser);
+  if (route.startsWith("/tag/")) {
+    filterTag = decodeURIComponent(route.slice(5));
+    searchInput.value = `#${filterTag}`;
+    go("explore");
+  }
   if (route === "/explore") go("explore");
   if (route === "/notifications") go("notifications");
   if (route === "/settings") go("settings");
@@ -686,5 +726,69 @@ document.getElementById("notes-list").addEventListener("click", (event) => {
   const btn = event.target.closest("[data-post]");
   if (btn?.dataset.post) openComments(btn.dataset.post);
 });
+
+function isStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+let deferredInstall = null;
+
+function syncInstallUi() {
+  const standalone = isStandalone();
+  document.documentElement.classList.toggle("standalone", standalone);
+  const pill = document.getElementById("install-pill");
+  const btn = document.getElementById("install-btn");
+  const copy = document.getElementById("install-copy");
+  if (standalone) {
+    pill?.classList.add("hidden");
+    btn?.classList.add("hidden");
+    if (copy) copy.textContent = "InstaOp is installed on this device.";
+    return;
+  }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (deferredInstall) {
+    pill?.classList.remove("hidden");
+    btn?.classList.remove("hidden");
+    if (copy) copy.textContent = "Install InstaOp as an app on this phone.";
+    return;
+  }
+  pill?.classList.toggle("hidden", !ios);
+  btn?.classList.add("hidden");
+  if (copy) {
+    copy.textContent = ios
+      ? "On iPhone: tap Share, then Add to Home Screen."
+      : "Use your browser menu to install InstaOp or Add to Home Screen.";
+  }
+}
+
+function promptInstall() {
+  if (deferredInstall) {
+    const pending = deferredInstall;
+    pending.prompt();
+    pending.userChoice.finally(() => {
+      deferredInstall = null;
+      syncInstallUi();
+    });
+    return;
+  }
+  window.alert("On iPhone: tap Share, then Add to Home Screen.\nOn Android: open the browser menu and tap Install app.");
+}
+
+window.addEventListener("beforeinstallprompt", (event) => {
+  event.preventDefault();
+  deferredInstall = event;
+  syncInstallUi();
+});
+window.addEventListener("appinstalled", () => {
+  deferredInstall = null;
+  syncInstallUi();
+});
+document.getElementById("install-pill")?.addEventListener("click", promptInstall);
+document.getElementById("install-btn")?.addEventListener("click", promptInstall);
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+}
+syncInstallUi();
 
 boot().catch(console.error);

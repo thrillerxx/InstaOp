@@ -4,7 +4,7 @@ import { extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createStore, publicPost } from "./store.mjs";
 import { classifyArt, composeVoice, hashSeed, inspectMessage } from "./captions.mjs";
-import { renderArtwork } from "./art.mjs";
+import { maybeProviderImage, renderArtwork } from "./art.mjs";
 import { fetchMempoolPreview, squareMempoolSvg } from "./mempool-preview.mjs";
 import { lookupConfirmed, startIngest } from "./nostr.mjs";
 import { openDatabase } from "./db.mjs";
@@ -94,7 +94,9 @@ export function createApp(options = {}) {
   }
 
   function shouldRefreshOfficialPreview(post) {
-    return shouldUseMempoolPreview(post) && post.artStyle !== "mempool";
+    if (!shouldUseMempoolPreview(post)) return false;
+    if (post.artStyle !== "mempool") return true;
+    return post.confirmed === true && post.artConfirmed !== true;
   }
 
   async function paintPost(post) {
@@ -103,10 +105,17 @@ export function createApp(options = {}) {
         const png = await fetchPreview(post.txid);
         store.writeImage(post.id, Buffer.from(squareMempoolSvg(png)), ".svg");
         post.artStyle = "mempool";
+        post.artConfirmed = post.confirmed === true;
         return;
       } catch (err) {
         console.error("mempool preview failed", post.id, err.message);
       }
+    }
+    const generated = await maybeProviderImage(post);
+    if (generated?.bytes) {
+      store.writeImage(post.id, generated.bytes, generated.ext || ".png");
+      post.artStyle = "ai";
+      return;
     }
     renderArtwork(post, store.imagePath(post.id));
   }
@@ -127,7 +136,7 @@ export function createApp(options = {}) {
     try {
       if (post && (post.artStatus !== "ready" || !existsSync(store.imagePath(id)) || shouldRefreshOfficialPreview(post))) {
         await paintPost(post);
-        const ready = store.update(id, { artStatus: "ready", artStyle: post.artStyle });
+        const ready = store.update(id, { artStatus: "ready", artStyle: post.artStyle, artConfirmed: post.artConfirmed });
         broadcast({ type: "art", post: decorate(ready) });
       }
     } catch (err) {
@@ -145,8 +154,14 @@ export function createApp(options = {}) {
   async function verifyTx(id, txid) {
     const confirmed = await confirmTx(txid);
     if (confirmed === null) return;
+    const prev = store.get(id);
     const ready = store.update(id, { confirmed });
-    if (ready) broadcast({ type: "status", post: decorate(ready) });
+    if (confirmed === true && prev?.confirmed !== true && shouldUseMempoolPreview(ready || prev)) {
+      store.update(id, { artConfirmed: false });
+      enqueue(id);
+    }
+    const latest = store.get(id);
+    if (latest) broadcast({ type: "status", post: decorate(latest) });
   }
 
   function broadcast(payload) {
@@ -187,6 +202,21 @@ export function createApp(options = {}) {
     return store.all().filter((post) => !post.demo);
   }
 
+  function listTags() {
+    const counts = new Map();
+    for (const post of published()) {
+      for (const raw of post.hashtags || []) {
+        const tag = String(raw).replace(/^#/, "");
+        if (!tag) continue;
+        const key = tag.toLowerCase();
+        const current = counts.get(key) || { tag, count: 0 };
+        current.count += 1;
+        counts.set(key, current);
+      }
+    }
+    return [...counts.values()].sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)).slice(0, 48);
+  }
+
   function listPosts(url, viewer) {
     const tag = (url.searchParams.get("tag") || "").replace(/^#/, "").toLowerCase();
     const q = (url.searchParams.get("q") || "").toLowerCase();
@@ -208,6 +238,17 @@ export function createApp(options = {}) {
 
   store.pendingArt().forEach((post) => enqueue(post.id));
   store.all().filter(shouldRefreshOfficialPreview).forEach((post) => enqueue(post.id));
+  for (const post of store.all()) {
+    if (!post.demo && post.txid && post.confirmed !== true) verifyTx(post.id, post.txid);
+  }
+  const confirmTimer = setInterval(() => {
+    for (const post of store.all()) {
+      if (!post.demo && post.txid && post.confirmed !== true) {
+        verifyTx(post.id, post.txid).catch((err) => console.error("confirm watch", err.message));
+      }
+    }
+  }, 30000);
+  confirmTimer.unref();
 
   const mime = {
     ".html": "text/html; charset=utf-8",
@@ -219,6 +260,8 @@ export function createApp(options = {}) {
     ".webp": "image/webp",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+    ".webmanifest": "application/manifest+json",
+    ".ico": "image/x-icon",
   };
 
   function serveFile(res, file, extra = {}) {
@@ -257,7 +300,7 @@ export function createApp(options = {}) {
       }
 
       if (path === "/api/health") {
-        return sendJson(res, 200, { ok: true, phase: 3, schema: 2, payments: paymentsEnabled });
+        return sendJson(res, 200, { ok: true, phase: 4, schema: 2, payments: paymentsEnabled });
       }
 
       if (path === "/api/status") {
@@ -462,6 +505,10 @@ export function createApp(options = {}) {
         return sendJson(res, 200, { users: social.listSuggested(user?.id || null) });
       }
 
+      if (path === "/api/tags" && req.method === "GET") {
+        return sendJson(res, 200, { tags: listTags() });
+      }
+
       if (path === "/api/publish/limits" && req.method === "GET") {
         const feeRate = await mempoolFastestRate();
         return sendJson(res, 200, { ...publishLimits(), feeRate, sample: estimateSats(80, { feeRate }) });
@@ -470,7 +517,7 @@ export function createApp(options = {}) {
       if (path === "/api/publish/shorten" && req.method === "POST") {
         if (!requireUser(req, res)) return;
         const body = await readJson(req);
-        return sendJson(res, 200, publish.shorten(body.statement || body.text || ""));
+        return sendJson(res, 200, await publish.shorten(body.statement || body.text || ""));
       }
 
       if (path === "/api/publish/drafts" && req.method === "GET") {
@@ -625,7 +672,7 @@ export function createApp(options = {}) {
           return;
         }
         return serveFile(res, file, {
-          "cache-control": "public, max-age=31536000, immutable",
+          "cache-control": "public, max-age=3600",
         });
       }
 
@@ -636,7 +683,14 @@ export function createApp(options = {}) {
         res.end();
         return;
       }
-      serveFile(res, file);
+      const bust = [".html", ".js", ".css"].includes(extname(file)) || rel === "/index.html";
+      const extra = {};
+      if (bust) extra["cache-control"] = "no-cache";
+      if (path === "/sw.js") {
+        extra["cache-control"] = "no-cache";
+        extra["service-worker-allowed"] = "/";
+      }
+      serveFile(res, file, extra);
     } catch (err) {
       if (err.status) return fail(res, err);
       console.error(req.method, path, err);
@@ -662,6 +716,7 @@ export function createApp(options = {}) {
     },
     close() {
       if (watchTimer) clearInterval(watchTimer);
+      if (confirmTimer) clearInterval(confirmTimer);
       return new Promise((resolve) => server.close(resolve));
     },
   };

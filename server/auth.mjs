@@ -145,7 +145,9 @@ export function createAuth(db) {
       bio: user.bio || "",
       city: user.city || "",
       website: user.website || "",
-      avatarUrl: user.avatar_path ? `/media/avatar/${user.id}` : `/media/avatar/${user.username}`,
+      avatarUrl: user.avatar_path
+        ? `/media/avatar/${user.id}?v=1`
+        : `/media/avatar/${encodeURIComponent(user.username)}${user.is_system ? "?v=cube" : ""}`,
       isSystem: Boolean(user.is_system),
       createdAt: user.created_at,
     };

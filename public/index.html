@@ -3,18 +3,28 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="InstaOp" />
     <title>InstaOp</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.png?v=icon4" type="image/png" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg?v=icon4" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico?v=icon4" sizes="any" />
+    <link rel="shortcut icon" href="/favicon.png?v=icon4" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=icon4" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=phase4" />
   </head>
   <body>
     <div class="shell">
       <aside class="sidenav">
         <a class="ig-logo" href="#/" aria-label="InstaOp">
-          <img class="mark" src="/logo.svg" alt="">
+          <img class="mark" src="/logo.png" alt="">
           <span class="word">InstaOp</span>
         </a>
         <nav>
@@ -40,7 +50,7 @@
             <span>Create</span>
           </button>
           <button class="navbtn" data-go="profile" type="button">
-            <img id="nav-ava" class="nav-ava" src="/logo.svg" alt="">
+            <img id="nav-ava" class="nav-ava" src="/logo.png" alt="">
             <span>Profile</span>
           </button>
         </nav>
@@ -48,7 +58,7 @@
 
       <div class="column">
         <header class="topbar">
-          <h1 class="logo"><img class="mark" src="/logo.svg" alt="">InstaOp</h1>
+          <h1 class="logo"><img class="mark" src="/logo.png" alt="">InstaOp</h1>
           <div class="topbar-right">
             <span id="live-badge" class="live-dot" title="Live"></span>
             <button class="icon-only" data-go="explore" type="button" aria-label="Search">
@@ -64,13 +74,14 @@
           <button id="tab-live" class="chip" type="button">Live</button>
         </div>
         <button id="new-pill" class="new-pill hidden" type="button">New posts</button>
+        <button id="install-pill" class="new-pill hidden" type="button">Install InstaOp</button>
         <section class="stories"><div id="stories" class="stories-row"></div></section>
         <main id="feed" class="feed"></main>
       </div>
 
       <aside class="rail">
         <div id="me-box" class="me">
-          <img id="me-ava" src="/logo.svg" alt="">
+          <img id="me-ava" src="/logo.png" alt="">
           <div>
             <strong id="me-user">guest</strong>
             <small id="me-name">Browse the chain</small>
@@ -100,12 +111,13 @@
         <svg viewBox="0 0 24 24"><rect x="3.2" y="4.2" width="17.6" height="15.6" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m11 12 4 2.4-4 2.4V12Z"/></svg>
       </button>
       <button class="tab" data-go="profile" type="button" aria-label="Profile">
-        <img id="tab-ava" src="/logo.svg" alt="">
+        <img id="tab-ava" src="/logo.png" alt="">
       </button>
     </nav>
 
     <section id="search-view" class="overlay hidden">
       <header><input id="search-input" type="search" placeholder="Search posts, #tags, or people" /></header>
+      <div id="tag-rail" class="tag-rail"></div>
       <div id="people-hits" class="people-hits"></div>
       <div id="search-grid" class="grid"></div>
     </section>
@@ -145,12 +157,17 @@
         <button id="logout-btn" class="ghost" type="button">Sign out</button>
         <button id="delete-btn" class="danger" type="button">Delete InstaOp account</button>
         <p class="hint">Deleting your InstaOp account removes your profile here. It does not remove any Bitcoin transaction.</p>
+        <div id="install-box" class="install-box">
+          <h3>Add to your phone</h3>
+          <p class="hint" id="install-copy">Install InstaOp as an app. Android: Install. iPhone: Share, then Add to Home Screen.</p>
+          <button id="install-btn" class="primary hidden" type="button">Install InstaOp</button>
+        </div>
       </form>
     </section>
 
     <div id="auth-view" class="modal hidden">
       <form id="auth-form" class="auth-card">
-        <img src="/logo.svg" alt="" class="auth-mark">
+        <img src="/logo.png" alt="" class="auth-mark">
         <h2>InstaOp</h2>
         <p class="hint">A social layer around permanent Bitcoin artifacts.</p>
         <div id="auth-error" class="error hidden"></div>
@@ -260,8 +277,8 @@
       <button id="story-next" class="hit right" type="button" aria-label="Next"></button>
     </div>
 
-    <script src="/optimizer.js"></script>
-    <script src="/composer.js"></script>
-    <script src="/app.js"></script>
+    <script src="/optimizer.js?v=phase4"></script>
+    <script src="/composer.js?v=phase4"></script>
+    <script src="/app.js?v=phase4"></script>
   </body>
 </html>

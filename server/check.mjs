@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { composeVoice, inspectMessage } from "./captions.mjs";
 import { renderArtwork } from "./art.mjs";
 import { previewUrl, squareMempoolSvg } from "./mempool-preview.mjs";
+import { suggestShortenSmart } from "./optimize.mjs";
 import { parseEvent, AUTHORS } from "./nostr.mjs";
 
 const bolt = inspectMessage("OP_RETURN Bot now supports BOLT 12!");
@@ -44,5 +45,9 @@ const square = squareMempoolSvg(png);
 if (!square.includes('width="1080"') || !square.includes("data:image/png;base64,")) {
   throw new Error("square mempool card");
 }
+
+const smart = await suggestShortenSmart("I just really actually love Bitcoin forever");
+if (smart.engine !== "rules") throw new Error("no key uses rules engine");
+if (!smart.suggested.toLowerCase().includes("bitcoin")) throw new Error("shorten keeps meaning");
 
 console.log("instaop checks ok");

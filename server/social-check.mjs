@@ -55,6 +55,7 @@ const app = createApp({
   noIngest: true,
   allowDemo: false,
   fetchPreview: async () => fakePreview,
+  lookupConfirmed: async () => true,
 });
 const addr = await new Promise((resolve) => {
   app.server.listen(0, "127.0.0.1", () => resolve(app.server.address()));
@@ -82,6 +83,17 @@ try {
   assert(verifyPassword("correct horse", hashed), "password verifies");
   assert(!verifyPassword("wrong", hashed), "password rejects");
   assert(verifyNostrEvent({ id: "00", pubkey: "aa", sig: "bb" }) === false, "junk nostr rejected");
+
+  const manifest = await fetch(`${base}/manifest.webmanifest`);
+  const manifestBody = await manifest.json();
+  assert(manifest.ok && manifestBody.display === "standalone", "pwa manifest");
+  const sw = await fetch(`${base}/sw.js`);
+  assert(sw.ok && (await sw.text()).includes("instaop-shell"), "service worker");
+  const brand = await fetch(`${base}/icon-512.png`);
+  assert(brand.ok && brand.headers.get("content-type")?.includes("png"), "pwa icon");
+
+  const tags = await req("/api/tags");
+  assert(tags.body.tags.some((row) => row.tag === "OP_RETURN" && row.count >= 1), "hashtag explorer");
 
   const official = await req("/api/users/OP_RETURN_Bot");
   assert(official.body.user.username === "OP_RETURN_Bot", "official handle");
@@ -208,6 +220,6 @@ try {
 
   console.log("instaop social checks ok");
 } finally {
-  await new Promise((resolve) => app.server.close(resolve));
+  await app.close();
   rmSync(dir, { recursive: true, force: true });
 }

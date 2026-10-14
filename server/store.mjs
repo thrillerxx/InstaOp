@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export function createStore(dataDir) {
@@ -72,6 +72,17 @@ export function createStore(dataDir) {
   };
 }
 
+function mediaUrl(post, store) {
+  const file = store.imagePath(post.id);
+  let stamp = post.artStyle || "art";
+  try {
+    stamp += `-${Math.floor(statSync(file).mtimeMs)}`;
+  } catch {
+    /* keep style-only stamp */
+  }
+  return `/media/${encodeURIComponent(post.id)}?v=${encodeURIComponent(stamp)}`;
+}
+
 export function safeId(id) {
   return String(id).replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80) || "unknown";
 }
@@ -90,7 +101,7 @@ export function publicPost(post, store) {
     demo: Boolean(post.demo),
     artStatus: ready ? "ready" : post.artStatus,
     artStyle: post.artStyle,
-    imageUrl: ready ? `/media/${encodeURIComponent(post.id)}` : null,
+    imageUrl: ready ? mediaUrl(post, store) : null,
     confirmed: post.confirmed ?? null,
   };
 }

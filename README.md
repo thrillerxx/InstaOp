@@ -4,7 +4,7 @@ A Bitcoin-native social network around [OP_RETURN](https://opreturnbot.com) mess
 
 The first official account is `@OP_RETURN_Bot`. It imports the public OP_RETURN Bot Nostr feed. A Bitcoin transaction does not identify who wrote the original message. Likes, comments, and follows live in InstaOp. A public post is only allowed after a confirmed onchain publication.
 
-Phase 3 sends queued drafts to OP_RETURN Bot for a Lightning invoice. InstaOp does not run a Lightning node. A public post appears only after the transaction confirms. Tests never create mainnet invoices.
+Phase 3 sends queued drafts to OP_RETURN Bot for a Lightning invoice. Phase 4 adds hashtags, mentions, a PWA, and a second mempool card fetch when a transaction confirms. InstaOp does not run a Lightning node. Tests never create mainnet invoices.
 
 ## What it does
 
@@ -13,6 +13,7 @@ Phase 3 sends queued drafts to OP_RETURN Bot for a Lightning invoice. InstaOp do
 - Real email or Nostr login (NIP-07). Private keys never touch the server
 - Follows, likes, comments, saves, notifications, and profile photos
 - Generated artwork and onchain captions
+- Hashtag explorer, clickable @mentions, and Add to Home Screen
 - Guests can browse. Signed-in users can interact
 
 `@OP_RETURN_Bot` posts use mempool.space's transaction preview card (`/render/en/preview/tx/{txid}`), fitted into InstaOp's 1080×1080 frame. That is the same image Twitter shows when the bot tweets a mempool link. It is not the REST API. Other artwork is procedural SVG until `INSTAOP_IMAGE_PROVIDER` is set.
@@ -25,7 +26,7 @@ npm test
 INSTAOP_DATA=./data INSTAOP_BIND=127.0.0.1 INSTAOP_PORT=8788 npm start
 ```
 
-Then open `http://127.0.0.1:8788/`.
+Then open `http://127.0.0.1:8788/`. On a phone, use the HTTPS URL and Install / Add to Home Screen. The service worker caches the shell only. Live posts and `/media` stay on the network so cards do not go stale.
 
 See `docs/ARCHITECTURE.md` for the schema, OP_RETURN Bot API notes, and later phases.
 

@@ -33,6 +33,51 @@ export function sniffImage(buffer) {
   return null;
 }
 
+export async function suggestShortenSmart(text, options = {}) {
+  const fallback = suggestShorten(text);
+  const key = options.apiKey || process.env.INSTAOP_AI_KEY || process.env.OPENAI_API_KEY || "";
+  const fetchImpl = options.fetchImpl || fetch;
+  if (!key || utf8Bytes(text) < 8) return { ...fallback, engine: "rules" };
+  try {
+    const res = await fetchImpl(options.url || "https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: options.model || process.env.INSTAOP_AI_MODEL || "gpt-4o-mini",
+        temperature: 0.2,
+        messages: [
+          {
+            role: "system",
+            content: "Shorten the user's Bitcoin OP_RETURN statement. Keep their meaning. Do not add hashtags or quotes. Return only the shorter statement.",
+          },
+          { role: "user", content: String(text || "") },
+        ],
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) throw new Error(`ai ${res.status}`);
+    const body = await res.json();
+    const suggested = String(body.choices?.[0]?.message?.content || "").trim();
+    if (!suggested) throw new Error("empty ai shorten");
+    const suggestedBytes = utf8Bytes(suggested);
+    return {
+      original: fallback.original,
+      suggested,
+      originalBytes: fallback.originalBytes,
+      suggestedBytes,
+      savings: Math.max(0, fallback.originalBytes - suggestedBytes),
+      overLimit: fallback.overLimit,
+      fits: suggestedBytes > 0 && suggestedBytes <= HARD_MAX,
+      applied: false,
+      changes: ["AI offered a shorter statement. Accept it only if you still mean the same thing."],
+      note: "AI suggestion only. The original stays until you accept it.",
+      engine: "ai",
+    };
+  } catch {
+    return { ...fallback, engine: "rules" };
+  }
+}
+
 export function suggestShorten(text) {
   const original = String(text || "");
   const originalBytes = utf8Bytes(original);

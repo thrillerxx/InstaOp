@@ -209,9 +209,30 @@ function escapeXml(value) {
     .replaceAll('"', "&quot;");
 }
 
-export async function maybeProviderImage(post) {
-  const provider = process.env.INSTAOP_IMAGE_PROVIDER || "";
-  const key = process.env.OPENAI_API_KEY || process.env.REPLICATE_API_TOKEN || "";
+export async function maybeProviderImage(post, options = {}) {
+  const provider = options.provider || process.env.INSTAOP_IMAGE_PROVIDER || "";
+  const key = options.apiKey || process.env.INSTAOP_IMAGE_KEY || process.env.OPENAI_API_KEY || "";
   if (!provider || provider === "none" || !key) return null;
-  return null;
+  if (provider !== "openai") return null;
+  const fetchImpl = options.fetchImpl || fetch;
+  try {
+    const res = await fetchImpl("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        size: "1024x1024",
+        response_format: "b64_json",
+        prompt: `Square Instagram photograph, no text, no watermark. Mood from this Bitcoin OP_RETURN: ${(post.message || "onchain").slice(0, 240)}`,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+    const body = await res.json();
+    const b64 = body.data?.[0]?.b64_json;
+    if (!b64) return null;
+    return { bytes: Buffer.from(b64, "base64"), ext: ".png" };
+  } catch {
+    return null;
+  }
 }

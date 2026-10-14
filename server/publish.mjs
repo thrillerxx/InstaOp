@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 import { newId, nowSec } from "./auth.mjs";
 import { HARD_MAX, ORIGINAL_UPLOAD_MAX, estimateSats, formatBytes, utf8Bytes } from "./limits.mjs";
-import { buildPayload, sniffImage, suggestShorten, validatePayload } from "./optimize.mjs";
+import { buildPayload, sniffImage, suggestShortenSmart, validatePayload } from "./optimize.mjs";
 
 const OPEN = new Set(["draft", "ready"]);
 
@@ -290,8 +290,8 @@ export function createPublish(db, { dataDir }) {
       const type = row.payload_kind === "text" ? "text/plain; charset=utf-8" : row.mime || "application/octet-stream";
       return existsSync(file) ? { file, type } : null;
     },
-    shorten(text) {
-      return suggestShorten(text);
+    async shorten(text) {
+      return suggestShortenSmart(text);
     },
     estimate(userId, id, feeRate) {
       const row = owned.get(id, userId);
