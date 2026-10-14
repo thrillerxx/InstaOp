@@ -3,8 +3,15 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 export const SCHEMA_VERSION = 2;
-export const OPRETURN_USERNAME = "opreturn";
-export const OPRETURN_PUBLISHER = "OP_RETURN Bot";
+export const OPRETURN_USERNAME = "OP_RETURN_Bot";
+export const OPRETURN_PUBLISHER = "OP_RETURN Bo";
+export const OPRETURN_WEBSITE = "https://opreturnbot.com";
+export const OPRETURN_ALIASES = ["opreturn", "op_return", "op_return_bot", "op_returnbot"];
+
+export function isOfficialUsername(value) {
+  const key = String(value || "").trim().toLowerCase();
+  return key === OPRETURN_USERNAME.toLowerCase() || OPRETURN_ALIASES.includes(key);
+}
 export const IMPORT_ATTRIBUTION =
   "Imported from the public OP_RETURN Bot feed. OP_RETURN Bot published this through InstaOp. A Bitcoin transaction does not identify who wrote the original message.";
 
@@ -21,6 +28,7 @@ const MIGRATIONS = [
     password_hash TEXT,
     bio TEXT NOT NULL DEFAULT '',
     city TEXT NOT NULL DEFAULT '',
+    website TEXT NOT NULL DEFAULT '',
     avatar_path TEXT,
     is_system INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
@@ -167,6 +175,7 @@ const EXTRA_COLUMNS = [
   ["publication_requests", "no_twitter", "INTEGER NOT NULL DEFAULT 1"],
   ["publication_requests", "invoice_expires_at", "INTEGER"],
   ["publication_requests", "amount_btc", "TEXT"],
+  ["users", "website", "TEXT NOT NULL DEFAULT ''"],
 ];
 
 function ensureColumn(db, table, name, spec) {

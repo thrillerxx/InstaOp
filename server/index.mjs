@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createStore, publicPost } from "./store.mjs";
 import { classifyArt, composeVoice, hashSeed, inspectMessage } from "./captions.mjs";
 import { renderArtwork } from "./art.mjs";
+import { fetchMempoolPreview, squareMempoolSvg } from "./mempool-preview.mjs";
 import { lookupConfirmed, startIngest } from "./nostr.mjs";
 import { openDatabase } from "./db.mjs";
 import { createAuth, SESSION_SECONDS } from "./auth.mjs";
@@ -36,13 +37,14 @@ export function createApp(options = {}) {
   const allowDemo = options.allowDemo ?? process.env.INSTAOP_ALLOW_DEMO === "1";
   const noIngest = options.noIngest ?? process.env.INSTAOP_NO_INGEST === "1";
   const paymentsEnabled = options.paymentsEnabled ?? process.env.INSTAOP_PAYMENTS === "1";
+  const fetchPreview = options.fetchPreview || fetchMempoolPreview;
 
   const store = createStore(dataDir);
   const db = openDatabase(dataDir);
   const auth = createAuth(db);
   const social = createSocial(db, { dataDir, auth });
   const publish = createPublish(db, { dataDir });
-  const official = social.official();
+  const official = social.ensureEveryoneFollowsOfficial();
   const bot = options.bot || (paymentsEnabled ? createOpReturnClient() : null);
   const clients = new Set();
   const queue = [];
@@ -87,6 +89,28 @@ export function createApp(options = {}) {
     return post;
   }
 
+  function shouldUseMempoolPreview(post) {
+    return Boolean(post?.txid) && !post.demo && social.isOfficialImport(post.id);
+  }
+
+  function shouldRefreshOfficialPreview(post) {
+    return shouldUseMempoolPreview(post) && post.artStyle !== "mempool";
+  }
+
+  async function paintPost(post) {
+    if (shouldUseMempoolPreview(post)) {
+      try {
+        const png = await fetchPreview(post.txid);
+        store.writeImage(post.id, Buffer.from(squareMempoolSvg(png)), ".svg");
+        post.artStyle = "mempool";
+        return;
+      } catch (err) {
+        console.error("mempool preview failed", post.id, err.message);
+      }
+    }
+    renderArtwork(post, store.imagePath(post.id));
+  }
+
   function enqueue(id) {
     if (queued.has(id)) return;
     queued.add(id);
@@ -101,9 +125,9 @@ export function createApp(options = {}) {
     working = true;
     const post = store.get(id);
     try {
-      if (post && (post.artStatus !== "ready" || !existsSync(store.imagePath(id)))) {
-        renderArtwork(post, store.imagePath(id));
-        const ready = store.update(id, { artStatus: "ready" });
+      if (post && (post.artStatus !== "ready" || !existsSync(store.imagePath(id)) || shouldRefreshOfficialPreview(post))) {
+        await paintPost(post);
+        const ready = store.update(id, { artStatus: "ready", artStyle: post.artStyle });
         broadcast({ type: "art", post: decorate(ready) });
       }
     } catch (err) {
@@ -112,7 +136,7 @@ export function createApp(options = {}) {
     } finally {
       queued.delete(id);
       working = false;
-      if (queue.length) setTimeout(pump, 30);
+      if (queue.length) setTimeout(pump, 200);
     }
   }
 
@@ -183,6 +207,7 @@ export function createApp(options = {}) {
   }
 
   store.pendingArt().forEach((post) => enqueue(post.id));
+  store.all().filter(shouldRefreshOfficialPreview).forEach((post) => enqueue(post.id));
 
   const mime = {
     ".html": "text/html; charset=utf-8",
@@ -581,7 +606,7 @@ export function createApp(options = {}) {
         const found = social.avatarFile(key);
         if (found?.file) return serveFile(res, found.file, { "cache-control": "private, max-age=3600" });
         if (found?.official) {
-          const logo = join(publicDir, "logo.svg");
+          const logo = join(publicDir, "opreturn-avatar.svg");
           if (existsSync(logo)) return serveFile(res, logo, { "cache-control": "public, max-age=86400" });
         }
         const svg = found?.svg || avatarSvg(key, key);

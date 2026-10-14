@@ -8,7 +8,7 @@ Phase 1 is the social layer around the existing OP_RETURN Bot feed. Phase 2 is t
 
 - Node 20 HTTP server, SSE live stream, and static InstaOp frontend
 - Nostr ingest of the official OP_RETURN Bot pubkey
-- Procedural artwork and caption notes
+- Official imported posts use mempool.space transaction unfurls, letterboxed to 1080×1080. Other posts stay procedural until an image provider is set.
 - JSON post cache plus on-disk SVG art
 - Private Tailscale preview. No public domain.
 
@@ -40,7 +40,7 @@ SQLite is the lightweight alternative to Appwrite. The schema is ordinary SQL an
 
 ## Product rules
 
-1. Imported OP_RETURN Bot notes become posts owned by the official `opreturn` account.
+1. Imported OP_RETURN Bot notes become posts owned by the official `@OP_RETURN_Bot` account.
 2. Those posts are **published through** OP_RETURN Bot. A transaction does not identify the person who paid for the original message.
 3. Likes, comments, follows, bookmarks, and profiles are offchain and server-authorized.
 4. Guests can browse. Only signed-in users can interact.
@@ -50,8 +50,10 @@ SQLite is the lightweight alternative to Appwrite. The schema is ordinary SQL an
 
 ## Official account
 
-- Username: `opreturn`
-- Display name: `OP_RETURN Bot`
+- Username: `OP_RETURN_Bot` (old `@opreturn` URLs still resolve here)
+- Display name: `OP_RETURN Bo`
+- Avatar: official OP_RETURN Bot cube (`public/opreturn-avatar.svg`, from https://opreturnbot.com/assets/images/logo.svg)
+- Website: `https://opreturnbot.com` (seeded; any user can add their own website on their profile)
 - System account, seeded on migrate
 - New users follow it automatically so Home is not empty
 - Attribution on every imported post: the bot is the InstaOp publisher, not a proven author of the onchain bytes
@@ -67,8 +69,8 @@ Internal account IDs are ours (`users.id`). A person may link a Nostr pubkey lat
 
 | Surface | Ranking |
 | --- | --- |
-| Home | Chronological posts from accounts the viewer follows, including `opreturn` |
-| Live | Chronological imported OP_RETURN events, newest first. No recommendation mix. |
+| Home | Chronological posts from accounts the viewer follows. `@OP_RETURN_Bot` is always included and cannot be unfollowed. |
+| Live | Chronological imported OP_RETURN events, newest first. Official posts stay in this feed. |
 | Explore | Image grid of published posts, plus hashtag and user search |
 | Profile | That account's published posts, plus Saved on the viewer's own profile |
 
@@ -110,7 +112,7 @@ Limits:
 
 ## Phases
 
-1. **Done** — accounts, profiles, follows, likes, comments, saves, notifications, profile photos, `opreturn` import, Home / Live / Explore.
+1. **Done** — accounts, profiles, follows, likes, comments, saves, notifications, profile photos, `@OP_RETURN_Bot` import, Home / Live / Explore.
 2. **Now** — text + image drafts, client-side byte optimizer, unpublished queue, fee *estimate* only. No invoices.
 3. **Now** — Lightning invoices via OP_RETURN Bot (`/api/unified` for text, `/createRequest` multipart `file` for images). InstaOp does not run LND. Tests use a mock bot. A public post still requires a mempool confirmation, not just broadcast.
 4. **Polish** — hashtag explorer, mentions, AI shortening / art, mobile motion.

@@ -20,6 +20,7 @@ const app = createApp({
   paymentsEnabled: true,
   bot: mock,
   lookupConfirmed: async (txid) => confirmed.get(txid) ?? false,
+  fetchPreview: async () => { throw new Error("tests do not fetch mempool previews"); },
 });
 const addr = await new Promise((resolve) => app.server.listen(0, "127.0.0.1", () => resolve(app.server.address())));
 const base = `http://127.0.0.1:${addr.port}`;

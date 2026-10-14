@@ -1,5 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { schnorr } from "@noble/curves/secp256k1.js";
+import { isOfficialUsername } from "./db.mjs";
 
 function bytesToHex(bytes) {
   return Buffer.from(bytes).toString("hex");
@@ -14,6 +15,9 @@ export const SESSION_DAYS = 30;
 export const SESSION_SECONDS = SESSION_DAYS * 24 * 60 * 60;
 export const RESERVED = new Set([
   "opreturn",
+  "op_return",
+  "op_return_bot",
+  "op_returnbot",
   "admin",
   "instaop",
   "instagram",
@@ -118,7 +122,8 @@ export function createAuth(db) {
     FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.id = ?
   `);
-  const byUsername = db.prepare(`SELECT * FROM users WHERE username = ?`);
+  const byUsername = db.prepare(`SELECT * FROM users WHERE lower(username) = ?`);
+  const byOfficial = db.prepare(`SELECT * FROM users WHERE id = 'user_opreturn' OR is_system = 1 ORDER BY created_at ASC`);
   const byEmail = db.prepare(`SELECT * FROM users WHERE email = ?`);
   const byId = db.prepare(`SELECT * FROM users WHERE id = ?`);
   const byNostr = db.prepare(`
@@ -139,6 +144,7 @@ export function createAuth(db) {
       displayName: user.display_name,
       bio: user.bio || "",
       city: user.city || "",
+      website: user.website || "",
       avatarUrl: user.avatar_path ? `/media/avatar/${user.id}` : `/media/avatar/${user.username}`,
       isSystem: Boolean(user.is_system),
       createdAt: user.created_at,
@@ -258,7 +264,9 @@ export function createAuth(db) {
       return byId.get(id) || null;
     },
     getByUsername(username) {
-      return byUsername.get(normalizeUsername(username)) || null;
+      const key = normalizeUsername(username);
+      if (isOfficialUsername(key)) return byOfficial.get() || byUsername.get("op_return_bot") || null;
+      return byUsername.get(key) || null;
     },
   };
 }

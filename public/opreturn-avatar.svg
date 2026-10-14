@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OP_RETURN Bot">
+  <path d="M32 4 57 17 32 30 7 17z" fill="#f7931a"/>
+  <path d="M7 17 32 30v30L7 47z" fill="#1b2029"/>
+  <path d="M32 30 57 17v30L32 60z" fill="#262d38"/>
+  <path d="M32 4 57 17v30L32 60 7 47V17zM7 17l25 13 25-13M32 30v30" fill="none" stroke="#f1f3f5" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="14.5" cy="31" rx="3" ry="3.6" fill="#f1f3f5"/>
+  <ellipse cx="24" cy="36" rx="3" ry="3.6" fill="#f1f3f5"/>
+  <path d="M14 42.5 25 48.3" stroke="#f7931a" stroke-width="3" stroke-linecap="round"/>
+  <path d="M37 36.5 52 28.7M37 42.5 52 34.7M37 48.5 46 43.8" stroke="#f1f3f5" stroke-width="2" stroke-linecap="round" opacity=".4"/>
+</svg>

@@ -112,11 +112,12 @@
 
     <section id="profile-view" class="overlay hidden">
       <header class="profile-head">
-        <img id="profile-ava" class="xl" src="/logo.svg" alt="">
+        <img id="profile-ava" class="xl" src="/opreturn-avatar.svg" alt="">
         <div>
-          <h2><span id="profile-user">opreturn</span> <button id="profile-follow" class="follow" type="button">Follow</button></h2>
+          <h2><span id="profile-user">OP_RETURN_Bot</span> <button id="profile-follow" class="follow" type="button">Follow</button></h2>
           <p><b id="stat-posts">0</b> posts &nbsp; <b id="stat-followers">0</b> followers &nbsp; <b id="stat-following">0</b> following</p>
-          <p><b id="profile-name">OP_RETURN Bot</b><br><span id="profile-city">Bitcoin mainnet</span><br><span id="profile-bio"></span></p>
+          <p><b id="profile-name">OP_RETURN Bo</b><br><span id="profile-city">Bitcoin mainnet</span><br><span id="profile-bio"></span></p>
+          <a id="profile-site" class="profile-site hidden" target="_blank" rel="noopener noreferrer"></a>
           <div id="profile-actions" class="profile-actions"></div>
         </div>
       </header>
@@ -138,6 +139,7 @@
         <label>Display name <input id="set-name" maxlength="40" /></label>
         <label>Bio <textarea id="set-bio" maxlength="160"></textarea></label>
         <label>Location <input id="set-city" maxlength="40" /></label>
+        <label>Website <input id="set-site" type="url" maxlength="200" placeholder="https://" /></label>
         <label>Profile photo <input id="set-photo" type="file" accept="image/jpeg,image/png,image/webp" /></label>
         <button class="primary" type="submit">Save</button>
         <button id="logout-btn" class="ghost" type="button">Sign out</button>

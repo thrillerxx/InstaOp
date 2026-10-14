@@ -44,7 +44,18 @@ writeFileSync(join(dir, "posts.json"), JSON.stringify({
   },
 }));
 
-const app = createApp({ dataDir: dir, bind: "127.0.0.1", port: 0, noIngest: true, allowDemo: false });
+const fakePreview = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64"
+);
+const app = createApp({
+  dataDir: dir,
+  bind: "127.0.0.1",
+  port: 0,
+  noIngest: true,
+  allowDemo: false,
+  fetchPreview: async () => fakePreview,
+});
 const addr = await new Promise((resolve) => {
   app.server.listen(0, "127.0.0.1", () => resolve(app.server.address()));
 });
@@ -66,14 +77,25 @@ function cookieHeader(setCookie) {
 try {
   assert(validUsername("thrillerx") === true, "username ok");
   assert(validUsername("opreturn") === false, "reserved opreturn");
+  assert(validUsername("op_return_bot") === false, "reserved official handle");
   const hashed = hashPassword("correct horse");
   assert(verifyPassword("correct horse", hashed), "password verifies");
   assert(!verifyPassword("wrong", hashed), "password rejects");
   assert(verifyNostrEvent({ id: "00", pubkey: "aa", sig: "bb" }) === false, "junk nostr rejected");
 
+  const official = await req("/api/users/OP_RETURN_Bot");
+  assert(official.body.user.username === "OP_RETURN_Bot", "official handle");
+  assert(official.body.user.displayName === "OP_RETURN Bo", "official display name");
+  assert(official.body.user.website === "https://opreturnbot.com", "official website");
+  const alias = await req("/api/users/opreturn");
+  assert(alias.body.user.username === "OP_RETURN_Bot", "old opreturn url still resolves");
+  const officialAva = await fetch(`${base}/media/avatar/OP_RETURN_Bot`);
+  const officialSvg = await officialAva.text();
+  assert(officialAva.ok && officialSvg.includes("M32 4 57 17"), "official cube avatar");
+
   const feed = await req("/api/feed?tab=live");
   assert(feed.body.posts.length === 1, `live hides demo, got ${feed.body.posts.length}`);
-  assert(feed.body.posts[0].author.username === "opreturn", "imported post owned by opreturn");
+  assert(feed.body.posts[0].author.username === "OP_RETURN_Bot", "imported post owned by official");
   assert(feed.body.posts[0].likeCount === 0, "no fake likes");
   assert(feed.body.posts[0].commentCount === 0, "no fake comments");
   assert(feed.body.posts[0].attribution.includes("does not identify"), "attribution present");
@@ -103,7 +125,15 @@ try {
   const bobCookie = cookieHeader(bob.cookie);
 
   const home = await req("/api/feed?tab=home", { headers: { cookie: aliceCookie } });
-  assert(home.body.posts.some((p) => p.author.username === "opreturn"), "new users follow opreturn");
+  assert(home.body.posts.some((p) => p.author.username === "OP_RETURN_Bot"), "new users follow official");
+  const live = await req("/api/feed?tab=live", { headers: { cookie: aliceCookie } });
+  assert(live.body.posts.some((p) => p.author.username === "OP_RETURN_Bot"), "live keeps official posts");
+  const leave = await req("/api/users/OP_RETURN_Bot/follow", { method: "DELETE", headers: { cookie: aliceCookie } });
+  assert(leave.res.status === 400, "cannot unfollow official");
+  const stillFollows = await req("/api/users/OP_RETURN_Bot", { headers: { cookie: aliceCookie } });
+  assert(stillFollows.body.user.viewerFollows === true, "official follow stays");
+  const homeAgain = await req("/api/feed?tab=home", { headers: { cookie: aliceCookie } });
+  assert(homeAgain.body.posts.some((p) => p.author.username === "OP_RETURN_Bot"), "home keeps official after unfollow attempt");
 
   const liked = await req("/api/posts/ev1/like", { method: "POST", body: "{}", headers: { cookie: aliceCookie } });
   assert(liked.body.likeCount === 1 && liked.body.liked === true, "alice like counts");
@@ -132,6 +162,19 @@ try {
   const bobProfile = await req("/api/users/bob", { headers: { cookie: aliceCookie } });
   assert(bobProfile.body.user.viewerFollows === true, "follow works");
   assert(bobProfile.body.user.followerCount === 1, "follower count");
+
+  const siteOk = await req("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify({ website: "example.com/about" }),
+    headers: { cookie: aliceCookie },
+  });
+  assert(siteOk.body.user.website === "https://example.com/about", "users can set a website");
+  const siteBad = await req("/api/me", {
+    method: "PATCH",
+    body: JSON.stringify({ website: "javascript:alert(1)" }),
+    headers: { cookie: aliceCookie },
+  });
+  assert(siteBad.res.status === 400, "reject javascript websites");
 
   const editBob = await req("/api/me", {
     method: "PATCH",

@@ -8,7 +8,7 @@ let userPinned = false;
 let filterTag = "";
 let filterQuery = "";
 let authMode = "register";
-let profileUser = "opreturn";
+let profileUser = "OP_RETURN_Bot";
 let profileMode = "posts";
 let openCommentsId = "";
 let notes = { unread: 0, items: [] };
@@ -71,6 +71,15 @@ function avatar(user) {
   return user?.avatarUrl || `/media/avatar/${encodeURIComponent(user?.username || "guest")}`;
 }
 
+function siteLabel(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.hostname.replace(/^www\./, "") + (parsed.pathname === "/" ? "" : parsed.pathname);
+  } catch {
+    return url;
+  }
+}
+
 function needAuth(action) {
   if (me) return true;
   openModal("auth-view");
@@ -102,7 +111,7 @@ function media(post) {
 }
 
 function card(post) {
-  const author = post.author || { username: "opreturn", displayName: "OP_RETURN Bot" };
+  const author = post.author || { username: "OP_RETURN_Bot", displayName: "OP_RETURN Bo" };
   const long = (post.message || "").length > 140;
   const tags = (post.hashtags || []).map((tag) => `<button type="button" data-tag="${escapeHtml(tag)}">#${escapeHtml(tag)}</button>`).join(" ");
   const likes = post.likeCount || 0;
@@ -157,7 +166,7 @@ function renderChrome() {
 
 function renderStories() {
   const chips = visible().slice(0, 12).map((post, index) => {
-    const who = post.author || { username: "opreturn" };
+    const who = post.author || { username: "OP_RETURN_Bot" };
     return `
       <button class="story-chip" data-story="${index}" type="button">
         <div class="story-ring"><img src="${avatar(who)}" alt=""></div>
@@ -335,7 +344,7 @@ function go(view, extra) {
     history.replaceState(null, "", "#/create");
     return;
   }
-  if (view === "profile") openProfile(extra || me?.username || "opreturn");
+  if (view === "profile") openProfile(extra || me?.username || "OP_RETURN_Bot");
   if (view === "settings") openSettings();
 }
 
@@ -361,13 +370,25 @@ async function openProfile(username) {
   document.getElementById("profile-name").textContent = user.displayName;
   document.getElementById("profile-city").textContent = user.city || "";
   document.getElementById("profile-bio").textContent = user.bio || "";
+  const site = document.getElementById("profile-site");
+  if (user.website) {
+    site.href = user.website;
+    site.textContent = siteLabel(user.website);
+    site.classList.remove("hidden");
+  } else {
+    site.removeAttribute("href");
+    site.textContent = "";
+    site.classList.add("hidden");
+  }
   document.getElementById("stat-posts").textContent = String(user.postCount || data.posts.length);
   document.getElementById("stat-followers").textContent = String(user.followerCount || 0);
   document.getElementById("stat-following").textContent = String(user.followingCount || 0);
   const followBtn = document.getElementById("profile-follow");
   const mine = me && me.username === user.username;
+  const lockedFollow = user.isSystem || user.username === "OP_RETURN_Bot" || user.username === "opreturn";
   followBtn.classList.toggle("hidden", Boolean(mine));
-  followBtn.textContent = user.viewerFollows ? "Following" : "Follow";
+  followBtn.disabled = lockedFollow;
+  followBtn.textContent = lockedFollow || user.viewerFollows ? "Following" : "Follow";
   followBtn.dataset.user = user.username;
   document.getElementById("saved-tab").classList.toggle("hidden", !mine);
   document.getElementById("profile-actions").innerHTML = mine
@@ -386,6 +407,7 @@ function openSettings() {
   document.getElementById("set-name").value = me.displayName || "";
   document.getElementById("set-bio").value = me.bio || "";
   document.getElementById("set-city").value = me.city || "";
+  document.getElementById("set-site").value = me.website || "";
   history.replaceState(null, "", "#/settings");
 }
 
@@ -394,7 +416,7 @@ function showStory() {
   if (!items.length) return;
   storyIndex = (storyIndex + items.length) % items.length;
   const post = items[storyIndex];
-  const who = post.author || { username: "opreturn" };
+  const who = post.author || { username: "OP_RETURN_Bot" };
   document.getElementById("story-image").src = post.imageUrl || avatar(who);
   document.getElementById("story-user").textContent = who.username;
   document.getElementById("story-caption").textContent = post.message;
@@ -598,6 +620,7 @@ document.getElementById("comment-form").addEventListener("submit", async (event)
   openComments(openCommentsId);
 });
 document.getElementById("profile-follow").addEventListener("click", async () => {
+  if (document.getElementById("profile-follow").disabled) return;
   if (!needAuth("Sign in to follow people.")) return;
   const username = document.getElementById("profile-follow").dataset.user;
   const following = document.getElementById("profile-follow").textContent === "Following";
@@ -620,6 +643,7 @@ document.getElementById("settings-form").addEventListener("submit", async (event
       displayName: document.getElementById("set-name").value,
       bio: document.getElementById("set-bio").value,
       city: document.getElementById("set-city").value,
+      website: document.getElementById("set-site").value,
     }),
   });
   me = user.user;

@@ -2,10 +2,10 @@ import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
-import { IMPORT_ATTRIBUTION, OPRETURN_PUBLISHER, OPRETURN_USERNAME } from "./db.mjs";
+import { IMPORT_ATTRIBUTION, isOfficialUsername, OPRETURN_PUBLISHER, OPRETURN_USERNAME, OPRETURN_WEBSITE } from "./db.mjs";
 import { newId, nowSec, normalizeUsername } from "./auth.mjs";
 
-const MENTION_RE = /@([a-z0-9._]{3,24})/g;
+const MENTION_RE = /@([a-zA-Z0-9._]{3,24})/g;
 const AVATAR_TYPES = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -31,6 +31,28 @@ function escapeXml(value) {
     .replaceAll(">", "&gt;");
 }
 
+export function parseWebsite(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (raw.length > 200) throw Object.assign(new Error("Website is too long."), { status: 400 });
+  let url;
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+  } catch {
+    throw Object.assign(new Error("Enter a valid website."), { status: 400 });
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw Object.assign(new Error("Website must be http or https."), { status: 400 });
+  }
+  if (!url.hostname || url.username || url.password) {
+    throw Object.assign(new Error("Enter a valid website."), { status: 400 });
+  }
+  if (url.hostname === "localhost" || url.hostname.endsWith(".localhost")) {
+    throw Object.assign(new Error("Enter a valid website."), { status: 400 });
+  }
+  return url.href.replace(/\/$/, "");
+}
+
 export function createSocial(db, { dataDir, auth }) {
   mkdirSync(join(dataDir, "avatars"), { recursive: true });
 
@@ -39,15 +61,17 @@ export function createSocial(db, { dataDir, auth }) {
     VALUES (@id, @username, @display_name, @email, @password_hash, @bio, @city, @avatar_path, @is_system, @created_at, @updated_at)
   `);
   const getUser = db.prepare(`SELECT * FROM users WHERE id = ?`);
-  const getByUsername = db.prepare(`SELECT * FROM users WHERE username = ?`);
+  const getByUsername = db.prepare(`SELECT * FROM users WHERE lower(username) = ?`);
+  const getOfficialRow = db.prepare(`SELECT * FROM users WHERE id = 'user_opreturn' OR is_system = 1 ORDER BY created_at ASC`);
   const listUsers = db.prepare(`SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 40`);
+  const activeUserIds = db.prepare(`SELECT id FROM users WHERE deleted_at IS NULL`);
   const updateUser = db.prepare(`
-    UPDATE users SET display_name = @display_name, bio = @bio, city = @city, avatar_path = @avatar_path, updated_at = @updated_at
+    UPDATE users SET display_name = @display_name, bio = @bio, city = @city, website = @website, avatar_path = @avatar_path, updated_at = @updated_at
     WHERE id = @id
   `);
   const softDelete = db.prepare(`
     UPDATE users SET username = @username, email = NULL, password_hash = NULL, display_name = 'Deleted account',
-      bio = '', city = '', avatar_path = NULL, deleted_at = @deleted_at, updated_at = @deleted_at
+      bio = '', city = '', website = '', avatar_path = NULL, deleted_at = @deleted_at, updated_at = @deleted_at
     WHERE id = @id
   `);
   const deleteIdentities = db.prepare(`DELETE FROM identities WHERE user_id = ?`);
@@ -112,6 +136,14 @@ export function createSocial(db, { dataDir, auth }) {
   const block = db.prepare(`INSERT OR IGNORE INTO blocks(blocker_id, blocked_id, created_at) VALUES (?, ?, ?)`);
   const blockedSet = db.prepare(`SELECT blocked_id FROM blocks WHERE blocker_id = ?`);
 
+  function findByUsername(username) {
+    const key = normalizeUsername(username);
+    if (isOfficialUsername(key)) {
+      return getUser.get("user_opreturn") || getOfficialRow.get() || getByUsername.get(OPRETURN_USERNAME.toLowerCase()) || null;
+    }
+    return getByUsername.get(key) || null;
+  }
+
   function publicUser(user, viewerId = null) {
     const base = auth.publicUser(user);
     if (!base) return null;
@@ -124,21 +156,34 @@ export function createSocial(db, { dataDir, auth }) {
   }
 
   function seedOfficial() {
-    const existing = getByUsername.get(OPRETURN_USERNAME);
-    if (existing) return existing;
+    const existing = getUser.get("user_opreturn") || getOfficialRow.get() || findByUsername(OPRETURN_USERNAME) || findByUsername("opreturn");
     const created = nowSec();
-    const id = "user_opreturn";
-    insertUser.run({
+    const id = existing?.id || "user_opreturn";
+    if (!existing) {
+      insertUser.run({
+        id,
+        username: OPRETURN_USERNAME,
+        display_name: OPRETURN_PUBLISHER,
+        email: null,
+        password_hash: null,
+        bio: "Official InstaOp publisher. Public OP_RETURN Bot messages land here. A Bitcoin transaction does not identify its author.",
+        city: "Bitcoin mainnet",
+        avatar_path: null,
+        is_system: 1,
+        created_at: created,
+        updated_at: created,
+      });
+    } else if (existing.username !== OPRETURN_USERNAME) {
+      db.prepare(`UPDATE users SET username = ? WHERE id = ?`).run(OPRETURN_USERNAME, id);
+    }
+    const user = getUser.get(id);
+    updateUser.run({
       id,
-      username: OPRETURN_USERNAME,
       display_name: OPRETURN_PUBLISHER,
-      email: null,
-      password_hash: null,
-      bio: "Official InstaOp publisher. Public OP_RETURN Bot messages land here. A Bitcoin transaction does not identify its author.",
-      city: "Bitcoin mainnet",
-      avatar_path: null,
-      is_system: 1,
-      created_at: created,
+      bio: user.bio,
+      city: user.city || "Bitcoin mainnet",
+      website: OPRETURN_WEBSITE,
+      avatar_path: user.avatar_path,
       updated_at: created,
     });
     return getUser.get(id);
@@ -150,7 +195,13 @@ export function createSocial(db, { dataDir, auth }) {
 
   function followOfficial(userId) {
     const bot = official();
-    if (userId !== bot.id) insertFollow.run(userId, bot.id, nowSec());
+    if (userId && userId !== bot.id) insertFollow.run(userId, bot.id, nowSec());
+  }
+
+  function ensureEveryoneFollowsOfficial() {
+    const bot = official();
+    for (const row of activeUserIds.all()) followOfficial(row.id);
+    return bot;
   }
 
   function importPost(post) {
@@ -216,6 +267,13 @@ export function createSocial(db, { dataDir, auth }) {
 
   return {
     official,
+    followOfficial,
+    ensureEveryoneFollowsOfficial,
+    isOfficialImport(postId) {
+      const row = getPost.get(postId);
+      if (!row) return true;
+      return row.source === "opreturn_bot_import";
+    },
     publicUser,
     importPost,
     claimUserPost,
@@ -226,16 +284,16 @@ export function createSocial(db, { dataDir, auth }) {
       return nostrAndFollow(event, nonce);
     },
     profile(username, viewerId) {
-      const user = getByUsername.get(normalizeUsername(username));
+      const user = findByUsername(username);
       if (!user || user.deleted_at) return null;
       return publicUser(user, viewerId);
     },
     listSuggested(viewerId) {
       const rows = viewerId ? suggest.all(viewerId, viewerId) : listUsers.all().filter((u) => !u.is_system).slice(0, 8);
-      return rows.filter((u) => u.username !== OPRETURN_USERNAME || viewerId).map((u) => publicUser(u, viewerId));
+      return rows.filter((u) => !isOfficialUsername(u.username) || viewerId).map((u) => publicUser(u, viewerId));
     },
     follow(viewerId, username) {
-      const target = getByUsername.get(normalizeUsername(username));
+      const target = findByUsername(username);
       if (!target || target.deleted_at) throw Object.assign(new Error("Account not found."), { status: 404 });
       if (target.id === viewerId) throw Object.assign(new Error("You cannot follow yourself."), { status: 400 });
       const added = insertFollow.run(viewerId, target.id, nowSec());
@@ -243,8 +301,12 @@ export function createSocial(db, { dataDir, auth }) {
       return publicUser(target, viewerId);
     },
     unfollow(viewerId, username) {
-      const target = getByUsername.get(normalizeUsername(username));
+      const target = findByUsername(username);
       if (!target) throw Object.assign(new Error("Account not found."), { status: 404 });
+      if (target.is_system || isOfficialUsername(target.username)) {
+        followOfficial(viewerId);
+        throw Object.assign(new Error("Everyone follows OP_RETURN Bot. That account stays on Home and Live."), { status: 400 });
+      }
       deleteFollow.run(viewerId, target.id);
       return publicUser(target, viewerId);
     },
@@ -257,6 +319,7 @@ export function createSocial(db, { dataDir, auth }) {
         display_name: String(patch.displayName ?? user.display_name).slice(0, 40),
         bio: String(patch.bio ?? user.bio).slice(0, 160),
         city: String(patch.city ?? user.city).slice(0, 40),
+        website: parseWebsite(patch.website ?? user.website),
         avatar_path: user.avatar_path,
         updated_at: nowSec(),
       });
@@ -276,19 +339,20 @@ export function createSocial(db, { dataDir, auth }) {
         display_name: user.display_name,
         bio: user.bio,
         city: user.city,
+        website: user.website || "",
         avatar_path: rel,
         updated_at: nowSec(),
       });
       return publicUser(getUser.get(userId), userId);
     },
     avatarFile(idOrName) {
-      const user = getUser.get(idOrName) || getByUsername.get(normalizeUsername(idOrName));
+      const user = getUser.get(idOrName) || findByUsername(idOrName);
       if (!user || user.deleted_at) return null;
       if (user.avatar_path) {
         const file = join(dataDir, "avatars", user.avatar_path);
         if (existsSync(file)) return { file, type: extType(user.avatar_path) };
       }
-      if (user.username === OPRETURN_USERNAME) {
+      if (isOfficialUsername(user.username)) {
         const logo = join(dataDir, "..", "public", "logo.svg");
         // logo lives in the app public dir; caller can fall back
         return { svg: null, official: true, user };
@@ -341,7 +405,7 @@ export function createSocial(db, { dataDir, auth }) {
       insertComment.run({ id, post_id: postId, user_id: userId, parent_id: parentId, body: text, created_at: nowSec() });
       notifyUser(post.author_id, userId, "comment", postId, id);
       for (const name of mentionUsernames(text)) {
-        const mentioned = getByUsername.get(name);
+        const mentioned = findByUsername(name);
         if (mentioned) notifyUser(mentioned.id, userId, "mention", postId, id);
       }
       return { comments: comments(postId), ...counts(postId, userId) };
@@ -374,6 +438,7 @@ export function createSocial(db, { dataDir, auth }) {
     },
     homeIds(viewerId) {
       const bot = official();
+      followOfficial(viewerId);
       const ids = new Set([bot.id]);
       if (viewerId) followingIds.all(viewerId).forEach((row) => ids.add(row.followee_id));
       return ids;
@@ -404,13 +469,13 @@ export function createSocial(db, { dataDir, auth }) {
     report(userId, { postId, username, reason }) {
       const text = String(reason || "").trim().slice(0, 400);
       if (!text) throw Object.assign(new Error("Say why you are reporting this."), { status: 400 });
-      const target = username ? getByUsername.get(normalizeUsername(username)) : null;
+      const target = username ? findByUsername(username) : null;
       report.run(newId(), userId, postId || null, target?.id || null, text, nowSec());
       return { ok: true };
     },
     block(userId, username) {
-      const target = getByUsername.get(normalizeUsername(username));
-      if (!target || target.is_system) throw Object.assign(new Error("That account cannot be blocked."), { status: 400 });
+      const target = findByUsername(username);
+      if (!target || target.is_system || isOfficialUsername(target.username)) throw Object.assign(new Error("That account cannot be blocked."), { status: 400 });
       if (target.id === userId) throw Object.assign(new Error("You cannot block yourself."), { status: 400 });
       block.run(userId, target.id, nowSec());
       deleteFollow.run(userId, target.id);

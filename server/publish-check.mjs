@@ -50,7 +50,14 @@ assert(under.ok && under.sats > 1337 && under.standard, "small text estimate");
 
 const dir = mkdtempSync(join(tmpdir(), "instaop-pub-"));
 writeFileSync(join(dir, "posts.json"), JSON.stringify({ lastSeen: 0, posts: {} }));
-const app = createApp({ dataDir: dir, bind: "127.0.0.1", port: 0, noIngest: true, allowDemo: false });
+const app = createApp({
+  dataDir: dir,
+  bind: "127.0.0.1",
+  port: 0,
+  noIngest: true,
+  allowDemo: false,
+  fetchPreview: async () => { throw new Error("tests do not fetch mempool previews"); },
+});
 const addr = await new Promise((resolve) => app.server.listen(0, "127.0.0.1", () => resolve(app.server.address())));
 const base = `http://127.0.0.1:${addr.port}`;
 
