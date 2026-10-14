@@ -24,7 +24,16 @@ export function createStore(dataDir) {
   return {
     dataDir,
     imagePath(id) {
-      return join(dataDir, "images", `${safeId(id)}.svg`);
+      const base = join(dataDir, "images", safeId(id));
+      for (const ext of [".webp", ".jpg", ".jpeg", ".png", ".svg"]) {
+        if (existsSync(base + ext)) return base + ext;
+      }
+      return `${base}.svg`;
+    },
+    writeImage(id, buffer, ext = ".svg") {
+      const dest = join(dataDir, "images", `${safeId(id)}${ext}`);
+      writeFileSync(dest, buffer);
+      return dest;
     },
     get(id) {
       return state.posts[id] || null;

@@ -1,8 +1,13 @@
 node_modules/
 data/
 *.tmp
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 .env
 .env.*
+!.env.example
 /etc/
 deploy-vps.sh
 instaop.service
+scripts/backup-vps.sh

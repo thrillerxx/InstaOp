@@ -14,41 +14,33 @@
     <div class="shell">
       <aside class="sidenav">
         <a class="ig-logo" href="#/" aria-label="InstaOp">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/></svg>
+          <img class="mark" src="/logo.svg" alt="">
           <span class="word">InstaOp</span>
         </a>
         <nav>
-          <button class="navbtn active" data-view="home" type="button">
+          <button class="navbtn active" data-go="home" type="button">
             <svg viewBox="0 0 24 24"><path d="M3 11.5 12 3.8 21 11.5V20a1.4 1.4 0 0 1-1.4 1.4H15v-6.2H9v6.2H4.4A1.4 1.4 0 0 1 3 20Z"/></svg>
             <span>Home</span>
           </button>
-          <button class="navbtn" data-view="search" type="button">
-            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            <span>Search</span>
+          <button class="navbtn" data-go="live" type="button">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+            <span>Live</span>
           </button>
-          <button class="navbtn" data-view="search" type="button">
+          <button class="navbtn" data-go="explore" type="button">
             <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m9.2 14.6 1.4-4.8 4.8-1.4-1.4 4.8Z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
             <span>Explore</span>
           </button>
-          <button class="navbtn" data-view="reels" type="button">
-            <svg viewBox="0 0 24 24"><rect x="3.2" y="4.2" width="17.6" height="15.6" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.6 9h16.8M8 4.4l2.2 4.6M13.2 4.4 15.6 9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m11 12 4 2.4-4 2.4V12Z"/></svg>
-            <span>Reels</span>
-          </button>
-          <button class="navbtn" data-view="messages" type="button">
-            <svg viewBox="0 0 24 24"><path d="m3.4 4.6 17.2 7.4-17.2 7.4 3.4-7.4-3.4-7.4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6.8 12h7.4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-            <span>Messages</span>
-            <i class="badge">3</i>
-          </button>
-          <button class="navbtn" type="button">
+          <button class="navbtn" data-go="notifications" type="button">
             <svg viewBox="0 0 24 24"><path d="M12.1 20.6S4.4 15.7 3.2 11.6C2.2 8.4 4 5.6 7.1 5.6c1.8 0 3.1 1.1 3.9 2.2.8-1.1 2.1-2.2 3.9-2.2 3.1 0 4.9 2.8 3.9 6-1.2 4.1-8.7 9-8.7 9Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
             <span>Notifications</span>
+            <i id="note-badge" class="badge hidden">0</i>
           </button>
-          <button class="navbtn" id="simulate" type="button">
+          <button class="navbtn" data-go="create" type="button">
             <svg viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v8M8 12h8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
             <span>Create</span>
           </button>
-          <button class="navbtn" data-view="profile" type="button">
-            <img class="nav-ava" src="https://i.pravatar.cc/64?u=you" alt="">
+          <button class="navbtn" data-go="profile" type="button">
+            <img id="nav-ava" class="nav-ava" src="/logo.svg" alt="">
             <span>Profile</span>
           </button>
         </nav>
@@ -56,82 +48,203 @@
 
       <div class="column">
         <header class="topbar">
-          <h1 class="logo">InstaOp</h1>
+          <h1 class="logo"><img class="mark" src="/logo.svg" alt="">InstaOp</h1>
           <div class="topbar-right">
             <span id="live-badge" class="live-dot" title="Live"></span>
-            <button class="icon-only" data-view="search" type="button" aria-label="Search">
+            <button class="icon-only" data-go="explore" type="button" aria-label="Search">
               <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
             </button>
-            <button class="icon-only heart" type="button" aria-label="Notifications">
+            <button class="icon-only heart" data-go="notifications" type="button" aria-label="Notifications">
               <svg viewBox="0 0 24 24"><path d="M12.1 20.6S4.4 15.7 3.2 11.6C2.2 8.4 4 5.6 7.1 5.6c1.8 0 3.1 1.1 3.9 2.2.8-1.1 2.1-2.2 3.9-2.2 3.1 0 4.9 2.8 3.9 6-1.2 4.1-8.7 9-8.7 9Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
             </button>
           </div>
         </header>
+        <div class="feed-switch">
+          <button id="tab-home" class="chip on" type="button">Home</button>
+          <button id="tab-live" class="chip" type="button">Live</button>
+        </div>
         <button id="new-pill" class="new-pill hidden" type="button">New posts</button>
         <section class="stories"><div id="stories" class="stories-row"></div></section>
         <main id="feed" class="feed"></main>
       </div>
 
       <aside class="rail">
-        <div class="me">
-          <img src="https://i.pravatar.cc/112?u=you" alt="">
+        <div id="me-box" class="me">
+          <img id="me-ava" src="/logo.svg" alt="">
           <div>
-            <strong>you</strong>
-            <small>Watching the chain</small>
+            <strong id="me-user">guest</strong>
+            <small id="me-name">Browse the chain</small>
           </div>
-          <button class="switch" type="button">Switch</button>
+          <button id="me-switch" class="switch" type="button">Sign in</button>
         </div>
         <div class="suggest-head">
           <span>Suggested for you</span>
-          <button type="button">See All</button>
         </div>
         <div id="suggested"></div>
-        <p class="legal">About · Help · Press · API · Jobs · Privacy · Terms · Locations · Language · Meta Verified</p>
-        <p class="legal">© 2026 INSTAOP FROM BITCOIN</p>
+        <p class="legal">Publishing to Bitcoin opens next. Likes and comments stay offchain. Deleting an InstaOp account does not delete a transaction.</p>
+        <p class="legal">© 2026 INSTAOP</p>
       </aside>
     </div>
 
     <nav class="tabbar">
-      <button class="tab active" data-view="home" type="button" aria-label="Home">
+      <button class="tab active" data-go="home" type="button" aria-label="Home">
         <svg viewBox="0 0 24 24"><path d="M3 11.5 12 3.8 21 11.5V20a1.4 1.4 0 0 1-1.4 1.4H15v-6.2H9v6.2H4.4A1.4 1.4 0 0 1 3 20Z"/></svg>
       </button>
-      <button class="tab" data-view="search" type="button" aria-label="Search">
+      <button class="tab" data-go="explore" type="button" aria-label="Search">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 5 5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
-      <button class="tab" id="simulate-m" type="button" aria-label="Create">
+      <button class="tab" data-go="create" type="button" aria-label="Create">
         <svg viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v8M8 12h8" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
-      <button class="tab" data-view="reels" type="button" aria-label="Reels">
+      <button class="tab" data-go="live" type="button" aria-label="Live">
         <svg viewBox="0 0 24 24"><rect x="3.2" y="4.2" width="17.6" height="15.6" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m11 12 4 2.4-4 2.4V12Z"/></svg>
       </button>
-      <button class="tab" data-view="profile" type="button" aria-label="Profile">
-        <img src="https://i.pravatar.cc/64?u=you" alt="">
+      <button class="tab" data-go="profile" type="button" aria-label="Profile">
+        <img id="tab-ava" src="/logo.svg" alt="">
       </button>
     </nav>
 
-    <button class="msg-dock" data-view="messages" type="button">Messages <b>3</b></button>
-
     <section id="search-view" class="overlay hidden">
-      <header><input id="search-input" type="search" placeholder="Search" /></header>
+      <header><input id="search-input" type="search" placeholder="Search posts, #tags, or people" /></header>
+      <div id="people-hits" class="people-hits"></div>
       <div id="search-grid" class="grid"></div>
     </section>
 
     <section id="profile-view" class="overlay hidden">
       <header class="profile-head">
-        <img class="xl" src="https://i.pravatar.cc/168?u=opreturn" alt="">
+        <img id="profile-ava" class="xl" src="/logo.svg" alt="">
         <div>
-          <h2>opreturn <button class="follow" type="button">Follow</button></h2>
-          <p><b id="stat-posts">0</b> posts &nbsp; <b>248K</b> followers &nbsp; <b>12</b> following</p>
-          <p><b>OP_RETURN</b><br>Bitcoin Mainnet<br>Forever on-chain.</p>
+          <h2><span id="profile-user">opreturn</span> <button id="profile-follow" class="follow" type="button">Follow</button></h2>
+          <p><b id="stat-posts">0</b> posts &nbsp; <b id="stat-followers">0</b> followers &nbsp; <b id="stat-following">0</b> following</p>
+          <p><b id="profile-name">OP_RETURN Bot</b><br><span id="profile-city">Bitcoin mainnet</span><br><span id="profile-bio"></span></p>
+          <div id="profile-actions" class="profile-actions"></div>
         </div>
       </header>
+      <div class="profile-tabs">
+        <button id="posts-tab" class="chip on" type="button">Posts</button>
+        <button id="saved-tab" class="chip hidden" type="button">Saved</button>
+      </div>
       <div id="profile-grid" class="grid"></div>
     </section>
 
-    <section id="messages-view" class="overlay hidden">
-      <header><h2>Messages</h2></header>
-      <div id="inbox" class="inbox"></div>
+    <section id="notes-view" class="overlay hidden">
+      <header><h2>Notifications</h2></header>
+      <div id="notes-list" class="inbox"></div>
     </section>
+
+    <section id="settings-view" class="overlay hidden">
+      <header><h2>Settings</h2></header>
+      <form id="settings-form" class="auth-form pad">
+        <label>Display name <input id="set-name" maxlength="40" /></label>
+        <label>Bio <textarea id="set-bio" maxlength="160"></textarea></label>
+        <label>Location <input id="set-city" maxlength="40" /></label>
+        <label>Profile photo <input id="set-photo" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+        <button class="primary" type="submit">Save</button>
+        <button id="logout-btn" class="ghost" type="button">Sign out</button>
+        <button id="delete-btn" class="danger" type="button">Delete InstaOp account</button>
+        <p class="hint">Deleting your InstaOp account removes your profile here. It does not remove any Bitcoin transaction.</p>
+      </form>
+    </section>
+
+    <div id="auth-view" class="modal hidden">
+      <form id="auth-form" class="auth-card">
+        <img src="/logo.svg" alt="" class="auth-mark">
+        <h2>InstaOp</h2>
+        <p class="hint">A social layer around permanent Bitcoin artifacts.</p>
+        <div id="auth-error" class="error hidden"></div>
+        <label>Username <input id="auth-username" autocomplete="username" maxlength="24" /></label>
+        <label>Email <input id="auth-email" type="email" autocomplete="email" /></label>
+        <label>Password <input id="auth-password" type="password" autocomplete="current-password" /></label>
+        <button class="primary" id="auth-submit" type="submit">Create account</button>
+        <button class="ghost" id="auth-toggle" type="button">I already have an account</button>
+        <button class="ghost" id="nostr-btn" type="button">Continue with Nostr</button>
+        <button class="textlike" id="auth-close" type="button">Keep browsing</button>
+      </form>
+    </div>
+
+    <div id="create-view" class="composer hidden">
+      <header class="composer-head">
+        <button id="co-close" type="button">Close</button>
+        <strong>New post</strong>
+        <span id="co-bytes">0 / 90,000 bytes</span>
+      </header>
+      <div class="meter"><i id="co-meter"></i></div>
+      <p id="co-error" class="error hidden"></p>
+
+      <section data-step="compose">
+        <label class="co-label">Onchain statement
+          <textarea id="co-statement" rows="5" placeholder="This exact text can be written to Bitcoin."></textarea>
+        </label>
+        <p class="hint">UTF-8 bytes count. Emoji can cost more than one byte. This statement stays immutable once it confirms.</p>
+        <button id="co-shorten" class="ghost hidden" type="button">Suggest a shorter version</button>
+        <div id="co-suggest" class="suggest hidden">
+          <p id="co-suggest-meta" class="hint"></p>
+          <pre id="co-suggest-body"></pre>
+          <button id="co-accept-short" class="primary" type="button">Use this version</button>
+        </div>
+        <label class="co-label">Photograph
+          <input id="co-photo" type="file" accept="image/jpeg,image/png,image/webp" />
+        </label>
+        <p id="co-opt-copy" class="hint hidden"></p>
+        <div id="co-compare" class="compare hidden">
+          <div class="compare-frame">
+            <img id="co-orig-img" alt="Original">
+            <img id="co-opt-img" alt="Optimized">
+          </div>
+          <input id="co-slider" type="range" min="0" max="100" value="50" />
+          <p>Original: <b id="co-orig-size"></b> · Optimized: <b id="co-opt-size"></b></p>
+          <p class="ok" id="co-opt-status"></p>
+        </div>
+        <label class="co-label">Offchain caption
+          <textarea id="co-caption" rows="2" maxlength="500" placeholder="Longer note. Stays in InstaOp, not required onchain."></textarea>
+        </label>
+        <label class="co-label">Hashtags
+          <input id="co-tags" placeholder="#Bitcoin #OP_RETURN" />
+        </label>
+        <label class="check"><input id="co-private" type="checkbox" checked /> Ask OP_RETURN Bot not to republish to Twitter or Nostr</label>
+        <div class="row">
+          <button id="co-save" class="ghost" type="button">Save draft</button>
+          <button id="co-preview-btn" class="primary" type="button">Preview for Bitcoin</button>
+        </div>
+        <h3>Publishing queue</h3>
+        <div id="co-queue"></div>
+      </section>
+
+      <section class="hidden" data-step="optimize">
+        <p class="co-opt-live" id="co-opt-live">Reading photograph…</p>
+      </section>
+
+      <section class="hidden" data-step="preview">
+        <img id="co-preview-img" class="preview-img hidden" alt="">
+        <p id="co-preview-text" class="preview-text"></p>
+        <div id="co-preview-meta"></div>
+        <label class="check"><input id="co-consent" type="checkbox" /> I understand this will be permanent on Bitcoin and cannot be deleted later.</label>
+        <p id="co-done" class="ok hidden"></p>
+        <div class="row">
+          <button id="co-back" class="ghost" type="button">Edit</button>
+          <button id="co-ready" class="primary" type="button">Queue for Bitcoin</button>
+        </div>
+        <button id="co-pay" class="primary" type="button">Pay with Lightning</button>
+        <div id="co-invoice" class="invoice hidden">
+          <img id="co-qr" alt="Lightning invoice">
+          <p id="co-pay-status">Waiting for payment…</p>
+          <textarea id="co-bolt11" readonly></textarea>
+          <button id="co-copy-inv" class="ghost" type="button">Copy invoice</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="comments-view" class="sheet hidden">
+      <header>
+        <strong>Comments</strong>
+        <button id="comments-close" type="button">Close</button>
+      </header>
+      <div id="comments-list"></div>
+      <form id="comment-form" class="comment-form">
+        <input id="comment-input" maxlength="500" placeholder="Add a comment…" />
+        <button class="primary" type="submit">Post</button>
+      </form>
+    </div>
 
     <div id="story-viewer" class="viewer hidden" role="dialog" aria-modal="true">
       <div id="story-progress" class="progress"></div>
@@ -145,6 +258,8 @@
       <button id="story-next" class="hit right" type="button" aria-label="Next"></button>
     </div>
 
+    <script src="/optimizer.js"></script>
+    <script src="/composer.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
