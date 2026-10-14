@@ -10,24 +10,24 @@
     <meta name="apple-mobile-web-app-title" content="InstaOp" />
     <title>InstaOp</title>
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/favicon.png?v=icon4" type="image/png" sizes="48x48" />
-    <link rel="icon" href="/favicon.svg?v=icon4" type="image/svg+xml" />
-    <link rel="icon" href="/favicon.ico?v=icon4" sizes="any" />
-    <link rel="shortcut icon" href="/favicon.png?v=icon4" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=icon4" />
+    <link rel="icon" href="/favicon.png?v=icon5" type="image/png" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg?v=icon5" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico?v=icon5" sizes="any" />
+    <link rel="shortcut icon" href="/favicon.png?v=icon5" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=icon5" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Grand+Hotel&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="/styles.css?v=polish" />
+    <link rel="stylesheet" href="/styles.css?v=ig5" />
   </head>
   <body>
     <div class="shell">
       <aside class="sidenav">
         <a class="ig-logo" href="#/" aria-label="InstaOp">
-          <img class="mark" src="/logo.png" alt="">
+          <img class="mark" src="/logo.png?v=icon5" alt="">
           <span class="word">InstaOp</span>
         </a>
-        <nav>
+        <nav class="nav-main">
           <button class="navbtn active" data-go="home" type="button">
             <svg viewBox="0 0 24 24"><path d="M3 11.5 12 3.8 21 11.5V20a1.4 1.4 0 0 1-1.4 1.4H15v-6.2H9v6.2H4.4A1.4 1.4 0 0 1 3 20Z"/></svg>
             <span>Home</span>
@@ -50,15 +50,21 @@
             <span>Create</span>
           </button>
           <button class="navbtn" data-go="profile" type="button">
-            <img id="nav-ava" class="nav-ava" src="/logo.png" alt="">
+            <img id="nav-ava" class="nav-ava" src="/logo.png?v=icon5" alt="">
             <span>Profile</span>
+          </button>
+        </nav>
+        <nav class="nav-foot">
+          <button class="navbtn" data-go="more" type="button">
+            <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>More</span>
           </button>
         </nav>
       </aside>
 
       <div class="column">
         <header class="topbar">
-          <h1 class="logo"><img class="mark" src="/logo.png" alt="">InstaOp</h1>
+          <h1 class="logo"><img class="mark" src="/logo.png?v=icon5" alt="">InstaOp</h1>
           <div class="topbar-right">
             <span id="live-badge" class="live-dot" title="Live"></span>
             <button class="icon-only" data-go="explore" type="button" aria-label="Search">
@@ -69,13 +75,18 @@
             </button>
           </div>
         </header>
-        <div class="feed-switch">
-          <button id="tab-home" class="chip on" type="button">Home</button>
-          <button id="tab-live" class="chip" type="button">Live</button>
+        <div class="feed-switch" role="tablist" aria-label="Feed">
+          <button id="tab-home" class="feed-tab on" type="button">Home</button>
+          <button id="tab-live" class="feed-tab" type="button">Live</button>
         </div>
         <button id="new-pill" class="new-pill hidden" type="button">New posts</button>
         <button id="install-pill" class="new-pill hidden" type="button">Install InstaOp</button>
-        <section class="stories"><div id="stories" class="stories-row"></div></section>
+        <section class="stories">
+          <button id="story-left" class="story-arrow left hidden" type="button" aria-label="Previous creators">‹</button>
+          <div id="stories" class="stories-row"></div>
+          <input id="story-file" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+          <button id="story-right" class="story-arrow right hidden" type="button" aria-label="Next creators">›</button>
+        </section>
         <main id="feed" class="feed">
           <article class="post skel-post" aria-hidden="true">
             <header class="post-head"><div class="skel skel-ava"></div><div class="skel skel-line w-120"></div></header>
@@ -88,7 +99,7 @@
 
       <aside class="rail">
         <div id="me-box" class="me">
-          <img id="me-ava" src="/logo.png" alt="">
+          <img id="me-ava" src="/logo.png?v=icon5" alt="">
           <div>
             <strong id="me-user">guest</strong>
             <small id="me-name">Browse the chain</small>
@@ -99,8 +110,7 @@
           <span>Suggested for you</span>
         </div>
         <div id="suggested"></div>
-        <p class="legal">Publishing to Bitcoin opens next. Likes and comments stay offchain. Deleting an InstaOp account does not delete a transaction.</p>
-        <p class="legal">© 2026 INSTAOP</p>
+        <p class="legal">© 2026 InstaOp · <button id="about-link" class="legal-btn" type="button">About</button> · <a href="https://opreturnbot.com" target="_blank" rel="noopener noreferrer">OP_RETURN Bot</a></p>
       </aside>
     </div>
 
@@ -118,7 +128,7 @@
         <svg viewBox="0 0 24 24"><rect x="3.2" y="4.2" width="17.6" height="15.6" rx="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m11 12 4 2.4-4 2.4V12Z"/></svg>
       </button>
       <button class="tab" data-go="profile" type="button" aria-label="Profile">
-        <img id="tab-ava" src="/logo.png" alt="">
+        <img id="tab-ava" src="/logo.png?v=icon5" alt="">
       </button>
     </nav>
 
@@ -189,9 +199,31 @@
       </form>
     </section>
 
+    <div id="about-view" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <article class="about-card">
+        <button id="about-close" class="about-x" type="button" aria-label="Close">×</button>
+        <img src="/logo.png?v=icon5" alt="" class="about-mark">
+        <h2 id="about-title">InstaOp</h2>
+        <p class="about-tag">Instagram captures moments. InstaOp makes them permanent on Bitcoin.</p>
+        <p>InstaOp is a Bitcoin-native social network. The feed looks familiar on purpose: creators, likes, comments, and profiles. Underneath, every original public post is a confirmed <code>OP_RETURN</code> on Bitcoin mainnet. That record cannot be edited or deleted later.</p>
+        <p>The idea started at <strong>TabConf 8 in 2026</strong>, watching <a href="https://opreturnbot.com" target="_blank" rel="noopener noreferrer">OP_RETURN Bot</a> turn short messages and images into unerasable Bitcoin artifacts. InstaOp is the social layer around that: a place to follow those artifacts, talk about them, and publish your own without pretending an ordinary photo is on-chain when it is not.</p>
+        <ul class="about-list">
+          <li>Public posts wait for a real Bitcoin confirmation before they appear.</li>
+          <li>Likes, comments, follows, and captions stay offchain on InstaOp.</li>
+          <li>@OP_RETURN_Bot is the official importer and stays on every Home feed.</li>
+          <li>A Bitcoin transaction proves data was written. It does not identify who paid.</li>
+        </ul>
+        <p class="hint">Built with the OP_RETURN Bot publishing path. We never ask for seed phrases. Signing stays in the wallet or Lightning invoice flow you already use.</p>
+        <div class="row">
+          <a class="primary" href="https://opreturnbot.com" target="_blank" rel="noopener noreferrer">Visit OP_RETURN Bot</a>
+          <button id="about-done" class="ghost" type="button">Close</button>
+        </div>
+      </article>
+    </div>
+
     <div id="auth-view" class="modal hidden">
       <form id="auth-form" class="auth-card">
-        <img src="/logo.png" alt="" class="auth-mark">
+        <img src="/logo.png?v=icon5" alt="" class="auth-mark">
         <h2>InstaOp</h2>
         <p class="hint">A social layer around permanent Bitcoin artifacts.</p>
         <div id="auth-error" class="error hidden"></div>
@@ -296,6 +328,14 @@
       <div id="people-list"></div>
     </div>
 
+    <div id="chain-view" class="sheet hidden">
+      <header>
+        <strong>On Bitcoin</strong>
+        <button id="chain-close" type="button">Close</button>
+      </header>
+      <div id="chain-body" class="chain-body"></div>
+    </div>
+
     <div id="comments-view" class="sheet hidden">
       <header>
         <strong>Comments</strong>
@@ -320,8 +360,8 @@
       <button id="story-next" class="hit right" type="button" aria-label="Next"></button>
     </div>
 
-    <script src="/optimizer.js?v=polish"></script>
-    <script src="/composer.js?v=polish"></script>
-    <script src="/app.js?v=polish"></script>
+    <script src="/optimizer.js?v=ig5"></script>
+    <script src="/composer.js?v=ig5"></script>
+    <script src="/app.js?v=ig5"></script>
   </body>
 </html>

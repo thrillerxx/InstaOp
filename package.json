@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "node server/index.mjs",
-    "test": "node server/check.mjs && node server/social-check.mjs && node server/publish-check.mjs && node server/pay-check.mjs"
+    "test": "node server/check.mjs && node server/social-check.mjs && node server/publish-check.mjs && node server/pay-check.mjs && node server/ui-check.mjs && node server/ui-webkit.mjs"
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",
@@ -12,5 +12,8 @@
     "better-sqlite3": "^12.4.1",
     "qrcode": "^1.5.4",
     "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.0"
   }
 }

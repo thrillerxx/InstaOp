@@ -1,4 +1,4 @@
-const CACHE = "instaop-shell-v5";
+const CACHE = "instaop-shell-v7";
 const SHELL = [
   "/",
   "/index.html",

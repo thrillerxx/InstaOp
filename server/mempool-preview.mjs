@@ -12,9 +12,9 @@ export function squareMempoolSvg(png) {
   if (!png?.length) throw new Error("mempool preview was empty");
   const b64 = Buffer.from(png).toString("base64");
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1080 1080" width="1080" height="1080">
-  <rect width="1080" height="1080" fill="#0d1424"/>
-  <image href="data:image/png;base64,${b64}" x="0" y="270" width="1080" height="540" preserveAspectRatio="xMidYMid meet"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 600" width="1200" height="600">
+  <rect width="1200" height="600" fill="#0d1424"/>
+  <image href="data:image/png;base64,${b64}" x="0" y="0" width="1200" height="600" preserveAspectRatio="xMidYMid meet"/>
 </svg>
 `;
 }

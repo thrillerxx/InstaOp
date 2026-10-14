@@ -221,11 +221,14 @@ export function createApp(options = {}) {
     const tag = (url.searchParams.get("tag") || "").replace(/^#/, "").toLowerCase();
     const q = (url.searchParams.get("q") || "").toLowerCase();
     const tab = url.searchParams.get("tab") || "live";
+    const limit = Math.min(40, Math.max(1, Number(url.searchParams.get("limit") || 20) || 20));
+    const before = Number(url.searchParams.get("before") || 0);
     const homeAuthors = viewer && tab === "home" ? social.homeIds(viewer.id) : null;
-    return published()
+    const rows = published()
       .filter((post) => {
         if (tag && !(post.hashtags || []).some((item) => item.toLowerCase() === tag)) return false;
         if (q && !`${post.message} ${post.note}`.toLowerCase().includes(q)) return false;
+        if (before && !(post.created_at < before)) return false;
         if (homeAuthors) {
           const row = social.decorate(publicPost(post, store), viewer.id);
           return row && homeAuthors.has(row.author.id);
@@ -234,6 +237,11 @@ export function createApp(options = {}) {
       })
       .map((post) => decorate(post, viewer))
       .filter(Boolean);
+    const posts = rows.slice(0, limit);
+    return {
+      posts,
+      nextBefore: rows.length > limit ? posts[posts.length - 1]?.created_at || null : null,
+    };
   }
 
   store.pendingArt().forEach((post) => enqueue(post.id));
@@ -296,11 +304,11 @@ export function createApp(options = {}) {
 
     try {
       if (path === "/api/feed") {
-        return sendJson(res, 200, { posts: listPosts(url, user) });
+        return sendJson(res, 200, listPosts(url, user));
       }
 
       if (path === "/api/health") {
-        return sendJson(res, 200, { ok: true, phase: 4, schema: 2, payments: paymentsEnabled });
+        return sendJson(res, 200, { ok: true, phase: 4, schema: 3, payments: paymentsEnabled });
       }
 
       if (path === "/api/status") {
@@ -484,7 +492,7 @@ export function createApp(options = {}) {
 
       if (path.startsWith("/api/posts/") && path.endsWith("/comments") && req.method === "GET") {
         const id = decodeURIComponent(path.slice("/api/posts/".length, -"/comments".length));
-        return sendJson(res, 200, { comments: social.comments(id), ...social.counts(id, user?.id || null) });
+        return sendJson(res, 200, { comments: social.comments(id, user?.id || null), ...social.counts(id, user?.id || null) });
       }
 
       if (path.startsWith("/api/posts/") && path.endsWith("/comments") && req.method === "POST") {
@@ -495,10 +503,48 @@ export function createApp(options = {}) {
         return sendJson(res, 201, social.comment(user.id, id, body.body, body.parentId || null));
       }
 
+      if (path.startsWith("/api/comments/") && path.endsWith("/like") && req.method === "POST") {
+        if (!requireUser(req, res)) return;
+        if (!writeLimit(`${user.id}:comment-like`)) return sendJson(res, 429, { error: "Slow down." });
+        const id = decodeURIComponent(path.slice("/api/comments/".length, -"/like".length));
+        return sendJson(res, 200, social.likeComment(user.id, id));
+      }
+
+      if (path.startsWith("/api/comments/") && path.endsWith("/like") && req.method === "DELETE") {
+        if (!requireUser(req, res)) return;
+        const id = decodeURIComponent(path.slice("/api/comments/".length, -"/like".length));
+        return sendJson(res, 200, social.unlikeComment(user.id, id));
+      }
+
       if (path.startsWith("/api/comments/") && req.method === "DELETE") {
         if (!requireUser(req, res)) return;
         const id = decodeURIComponent(path.slice("/api/comments/".length));
         return sendJson(res, 200, social.deleteComment(user.id, id));
+      }
+
+      if (path === "/api/stories" && req.method === "GET") {
+        return sendJson(res, 200, {
+          stories: social.listStories(user?.id || null),
+          ttlHours: 24,
+          note: "Stories expire in 24 hours and are not written to Bitcoin.",
+        });
+      }
+
+      if (path === "/api/stories" && req.method === "POST") {
+        if (!requireUser(req, res)) return;
+        if (!writeLimit(`${user.id}:story`)) return sendJson(res, 429, { error: "Slow down." });
+        const raw = await readRaw(req, 2_200_000);
+        const parts = parseMultipart(raw, req.headers["content-type"]);
+        const file = parts.find((part) => part.name === "photo" || part.filename);
+        const caption = parts.find((part) => part.name === "caption")?.body?.toString?.() || "";
+        if (!file) return sendJson(res, 400, { error: "Attach a photo." });
+        return sendJson(res, 201, { story: await social.createStory(user.id, file, caption) });
+      }
+
+      if (path.startsWith("/api/stories/") && req.method === "DELETE") {
+        if (!requireUser(req, res)) return;
+        const id = decodeURIComponent(path.slice("/api/stories/".length));
+        return sendJson(res, 200, social.removeStory(user.id, id));
       }
 
       if (path === "/api/saved") {
@@ -683,6 +729,17 @@ export function createApp(options = {}) {
         res.writeHead(200, { "content-type": "image/svg+xml", "cache-control": "public, max-age=86400" });
         res.end(svg);
         return;
+      }
+
+      if (path.startsWith("/media/story/")) {
+        const id = decodeURIComponent(path.slice("/media/story/".length));
+        const found = social.storyFile(id);
+        if (!found) {
+          res.writeHead(404);
+          res.end("expired");
+          return;
+        }
+        return serveFile(res, found.file, { "cache-control": "private, max-age=300", "content-type": found.type });
       }
 
       if (path.startsWith("/media/")) {

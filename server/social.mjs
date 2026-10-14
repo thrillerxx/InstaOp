@@ -2,7 +2,7 @@ import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
-import { IMPORT_ATTRIBUTION, isOfficialUsername, OPRETURN_PUBLISHER, OPRETURN_USERNAME, OPRETURN_WEBSITE } from "./db.mjs";
+import { IMPORT_ATTRIBUTION, isOfficialUsername, OPRETURN_PUBLISHER, OPRETURN_USERNAME, OPRETURN_WEBSITE, STORY_TTL_SEC } from "./db.mjs";
 import { newId, nowSec, normalizeUsername } from "./auth.mjs";
 
 const MENTION_RE = /@([a-zA-Z0-9._]{3,24})/g;
@@ -55,6 +55,7 @@ export function parseWebsite(value) {
 
 export function createSocial(db, { dataDir, auth }) {
   mkdirSync(join(dataDir, "avatars"), { recursive: true });
+  mkdirSync(join(dataDir, "stories"), { recursive: true });
 
   const insertUser = db.prepare(`
     INSERT INTO users(id, username, display_name, email, password_hash, bio, city, avatar_path, is_system, created_at, updated_at)
@@ -111,6 +112,28 @@ export function createSocial(db, { dataDir, auth }) {
   `);
   const commentCount = db.prepare(`SELECT COUNT(*) AS n FROM comments WHERE post_id = ? AND deleted_at IS NULL`);
   const hideComment = db.prepare(`UPDATE comments SET deleted_at = ? WHERE id = ?`);
+  const likeComment = db.prepare(`INSERT OR IGNORE INTO comment_likes(user_id, comment_id, created_at) VALUES (?, ?, ?)`);
+  const unlikeComment = db.prepare(`DELETE FROM comment_likes WHERE user_id = ? AND comment_id = ?`);
+  const commentLiked = db.prepare(`SELECT 1 FROM comment_likes WHERE user_id = ? AND comment_id = ?`);
+  const commentLikeCount = db.prepare(`SELECT COUNT(*) AS n FROM comment_likes WHERE comment_id = ?`);
+  const insertStory = db.prepare(`
+    INSERT INTO stories(id, user_id, image_path, caption, created_at, expires_at)
+    VALUES (@id, @user_id, @image_path, @caption, @created_at, @expires_at)
+  `);
+  const getStory = db.prepare(`
+    SELECT s.*, u.username, u.display_name
+    FROM stories s JOIN users u ON u.id = s.user_id
+    WHERE s.id = ?
+  `);
+  const expireStories = db.prepare(`DELETE FROM stories WHERE expires_at <= ?`);
+  const listActiveStories = db.prepare(`
+    SELECT s.*, u.username, u.display_name
+    FROM stories s JOIN users u ON u.id = s.user_id
+    WHERE s.expires_at > ? AND u.deleted_at IS NULL
+    ORDER BY s.created_at DESC
+    LIMIT 80
+  `);
+  const deleteStory = db.prepare(`DELETE FROM stories WHERE id = ? AND user_id = ?`);
   const bookmark = db.prepare(`INSERT OR IGNORE INTO bookmarks(user_id, post_id, created_at) VALUES (?, ?, ?)`);
   const unbookmark = db.prepare(`DELETE FROM bookmarks WHERE user_id = ? AND post_id = ?`);
   const booked = db.prepare(`SELECT 1 FROM bookmarks WHERE user_id = ? AND post_id = ?`);
@@ -430,7 +453,28 @@ export function createSocial(db, { dataDir, auth }) {
         const mentioned = findByUsername(name);
         if (mentioned) notifyUser(mentioned.id, userId, "mention", postId, id);
       }
-      return { comments: comments(postId), ...counts(postId, userId) };
+      return { comments: comments(postId, userId), ...counts(postId, userId) };
+    },
+    likeComment(userId, commentId) {
+      const row = getComment.get(commentId);
+      if (!row || row.deleted_at) throw Object.assign(new Error("Comment not found."), { status: 404 });
+      const added = likeComment.run(userId, commentId, nowSec());
+      if (added.changes) notifyUser(row.user_id, userId, "comment_like", row.post_id, commentId);
+      return {
+        id: commentId,
+        likeCount: commentLikeCount.get(commentId).n,
+        liked: true,
+      };
+    },
+    unlikeComment(userId, commentId) {
+      const row = getComment.get(commentId);
+      if (!row || row.deleted_at) throw Object.assign(new Error("Comment not found."), { status: 404 });
+      unlikeComment.run(userId, commentId);
+      return {
+        id: commentId,
+        likeCount: commentLikeCount.get(commentId).n,
+        liked: false,
+      };
     },
     deleteComment(userId, commentId) {
       const row = getComment.get(commentId);
@@ -439,8 +483,54 @@ export function createSocial(db, { dataDir, auth }) {
       hideComment.run(nowSec(), commentId);
       return { ok: true };
     },
-    comments(postId) {
-      return comments(postId);
+    comments(postId, viewerId = null) {
+      return comments(postId, viewerId);
+    },
+    async createStory(userId, file, caption = "") {
+      const user = getUser.get(userId);
+      if (!user || user.deleted_at) throw Object.assign(new Error("Account not found."), { status: 404 });
+      const type = file.type && AVATAR_TYPES[file.type]
+        ? file.type
+        : /\.png$/i.test(file.filename || "") ? "image/png"
+          : /\.webp$/i.test(file.filename || "") ? "image/webp"
+            : /\.jpe?g$/i.test(file.filename || "") ? "image/jpeg"
+              : file.type;
+      const ext = AVATAR_TYPES[type];
+      if (!ext) throw Object.assign(new Error("Use a JPEG, PNG, or WebP photo."), { status: 400 });
+      if (file.body.length > 2_000_000) throw Object.assign(new Error("Story photo must be under 2 MB."), { status: 400 });
+      expireStories.run(nowSec());
+      const id = newId();
+      const rel = `${id}.${ext}`;
+      await pipeline(Readable.from(file.body), createWriteStream(join(dataDir, "stories", rel)));
+      const created = nowSec();
+      insertStory.run({
+        id,
+        user_id: userId,
+        image_path: rel,
+        caption: String(caption || "").trim().slice(0, 140),
+        created_at: created,
+        expires_at: created + STORY_TTL_SEC,
+      });
+      return publicStory(getStory.get(id), userId);
+    },
+    listStories(viewerId = null) {
+      expireStories.run(nowSec());
+      return listActiveStories.all(nowSec()).map((row) => publicStory(row, viewerId));
+    },
+    storyFile(id) {
+      expireStories.run(nowSec());
+      const row = getStory.get(id);
+      if (!row || row.expires_at <= nowSec()) return null;
+      const file = join(dataDir, "stories", row.image_path);
+      if (!existsSync(file)) return null;
+      return { file, type: extType(row.image_path) };
+    },
+    removeStory(userId, id) {
+      const row = getStory.get(id);
+      if (!row) throw Object.assign(new Error("Story not found."), { status: 404 });
+      if (row.user_id !== userId) throw Object.assign(new Error("You can only remove your own story."), { status: 403 });
+      deleteStory.run(id, userId);
+      return { ok: true };
     },
     counts(postId, viewerId) {
       return counts(postId, viewerId);
@@ -518,18 +608,39 @@ export function createSocial(db, { dataDir, auth }) {
     },
   };
 
-  function comments(postId) {
+  function comments(postId, viewerId = null) {
     return listComments.all(postId).map((row) => ({
       id: row.id,
       body: row.body,
       createdAt: row.created_at,
       parentId: row.parent_id,
+      likeCount: commentLikeCount.get(row.id).n,
+      liked: viewerId ? Boolean(commentLiked.get(viewerId, row.id)) : false,
       author: {
         username: row.username,
         displayName: row.deleted_at ? "Deleted account" : row.display_name,
         avatarUrl: `/media/avatar/${row.username}`,
       },
     }));
+  }
+
+  function publicStory(row, viewerId = null) {
+    if (!row) return null;
+    return {
+      id: row.id,
+      imageUrl: `/media/story/${row.id}`,
+      caption: row.caption || "",
+      createdAt: row.created_at,
+      expiresAt: row.expires_at,
+      ephemeral: true,
+      onchain: false,
+      author: {
+        username: row.username,
+        displayName: row.display_name,
+        avatarUrl: `/media/avatar/${encodeURIComponent(row.username)}`,
+      },
+      mine: Boolean(viewerId && row.user_id === viewerId),
+    };
   }
 
   function counts(postId, viewerId) {

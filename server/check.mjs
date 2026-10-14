@@ -42,8 +42,22 @@ const png = Buffer.from(
   "base64"
 );
 const square = squareMempoolSvg(png);
-if (!square.includes('width="1080"') || !square.includes("data:image/png;base64,")) {
-  throw new Error("square mempool card");
+if (!square.includes('width="1200"') || square.includes("y=\"270\"") || !square.includes("data:image/png;base64,")) {
+  throw new Error("mempool card should be 2:1 without letterbox bars");
+}
+
+const css = readFileSync(new URL("../public/styles.css", import.meta.url), "utf8");
+if (!css.includes("max-width: var(--feed)") || !css.includes("min-width: 0")) {
+  throw new Error("feed column must shrink with the viewport and cap at --feed");
+}
+if (!css.includes(".media") || !css.includes("object-fit: contain") || !css.includes("overflow: hidden")) {
+  throw new Error("1080 art must stay inside the post frame");
+}
+if (css.includes("minmax(var(--feed), 630px)")) {
+  throw new Error("desktop grid must not grow the feed track past the post width");
+}
+if (!css.includes("overscroll-behavior-x: contain")) {
+  throw new Error("stories scroll inside the feed, not the page");
 }
 
 const smart = await suggestShortenSmart("I just really actually love Bitcoin forever");

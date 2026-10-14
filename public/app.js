@@ -14,6 +14,17 @@ let openCommentsId = "";
 let notes = { unread: 0, items: [] };
 let lastTap = { id: "", at: 0 };
 let toastTimer = null;
+let storyItems = [];
+let liveStories = [];
+let feedCursor = null;
+let feedDone = false;
+let feedLoading = false;
+let moreObs = null;
+const feedScroll = { home: 0, live: 0 };
+const seenStories = (() => {
+  try { return new Set(JSON.parse(sessionStorage.getItem("instaop-seen-stories") || "[]")); } catch { return new Set(); }
+})();
+let replyTo = null;
 
 const feedEl = document.getElementById("feed");
 const storiesEl = document.getElementById("stories");
@@ -89,13 +100,8 @@ function toast(message) {
 }
 window.InstaOpToast = toast;
 
-function timeLine(post) {
-  const bits = [timeAgo(post.created_at)];
-  if (post.txid) bits.push(`<a href="https://mempool.space/tx/${escapeHtml(post.txid)}" target="_blank" rel="noopener">View transaction</a>`);
-  if (post.bytes) bits.push(`${post.bytes} bytes`);
-  if (post.confirmed === true) bits.push("confirmed");
-  if (post.confirmed === false) bits.push("in mempool");
-  return bits.join(" · ");
+function btcIcon() {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm1.2 5.2h1.1V6h1.3v1.2h.7v1.3h-.7v1.3h.7v1.3h-.7V14h.7v1.3h-.7V17h-1.3v-1.7h-1.1V17H12v-1.7h-2.2l-.5-1.3h.6c.4 0 .6-.2.6-.6V8.6c0-.8.5-1.4 1.5-1.4h1.2V6h1.2v1.2Zm-1.1 4.7h1.1V8.6h-1.1v3.3Z"/></svg>`;
 }
 
 function siteLabel(url) {
@@ -145,13 +151,15 @@ function refreshOpenPost(id) {
 }
 
 function media(post) {
-  if (post.imageUrl) return `<img src="${post.imageUrl}" alt="" class="ready">`;
-  return `<div class="wait">Posting</div>`;
+  const wide = post.artStyle === "mempool" ? " wide" : "";
+  const alt = escapeHtml((post.message || "Onchain post").slice(0, 80));
+  if (post.imageUrl) return `<div class="media${wide}"><div class="wait">Loading</div><img src="${post.imageUrl}" alt="${alt}" loading="lazy"></div>`;
+  return `<div class="media${wide}"><div class="wait">Posting</div></div>`;
 }
 
 function card(post) {
   const author = post.author || { username: "OP_RETURN_Bot", displayName: "OP_RETURN Bo" };
-  const long = (post.message || "").length > 140;
+  const long = (post.message || "").length > 120;
   const tags = (post.hashtags || []).map((tag) => `<button type="button" data-tag="${escapeHtml(tag)}">#${escapeHtml(tag)}</button>`).join(" ");
   const likes = post.likeCount || 0;
   const comments = post.commentCount || 0;
@@ -164,30 +172,35 @@ function card(post) {
         </button>
         <div class="who">
           <button class="who-btn" data-user="${escapeHtml(author.username)}" type="button"><strong>${escapeHtml(author.username)}</strong></button>
-          <small>${escapeHtml(author.city || "Bitcoin mainnet")}</small>
+          <span class="sep">·</span>
+          <time datetime="${post.created_at}">${timeAgo(post.created_at)}</time>
+          ${post.txid ? `<button class="onchain-badge" data-chain="${post.id}" type="button" title="On Bitcoin" aria-label="On Bitcoin">${btcIcon()}</button>` : ""}
         </div>
         <button class="more-btn" data-user="${escapeHtml(author.username)}" type="button" aria-label="More">•••</button>
       </header>
-      <div class="media">${media(post)}</div>
+      ${media(post)}
       <div class="actions">
         <button class="like${post.liked ? " liked" : ""}" type="button" aria-label="Like">${heart}</button>
         <button class="open-comments" type="button" aria-label="Comment"><svg viewBox="0 0 24 24"><path d="M4.4 5.2h15.2v10.4H8.2L4.4 19V5.2Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
         <button class="share" type="button" aria-label="Share"><svg viewBox="0 0 24 24"><path d="m4 10.2 16-6.2-6.4 16.2-3.2-7.2L4 10.2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg></button>
         <button class="save${post.saved ? " saved" : ""} push" type="button" aria-label="Save"><svg viewBox="0 0 24 24"><path d="M6.2 4.4h11.6v15.2L12 16.2 6.2 19.6V4.4Z" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></button>
       </div>
-      <p class="likes">${likes ? `${likes.toLocaleString()} like${likes === 1 ? "" : "s"}` : "Be the first to like this"}</p>
-      <p class="caption"><b>${escapeHtml(author.username)}</b><span class="${long ? "clamp" : ""}">${linkify(post.message)} ${linkify(post.note || "")} <span class="tags">${tags}</span></span>${long ? ` <button class="more" type="button">more</button>` : ""}</p>
-      <p class="source">${escapeHtml(post.attribution || "")}</p>
+      <p class="likes">${likes ? `${likes.toLocaleString()} like${likes === 1 ? "" : "s"}` : ""}</p>
+      <p class="caption"><b>${escapeHtml(author.username)}</b><span class="${long ? "clamp" : ""}">${linkify(post.message)} <span class="tags">${tags}</span></span>${long ? ` <button class="more" type="button">more</button>` : ""}</p>
+      ${post.note ? `<p class="caption-note">${linkify(post.note)}</p>` : ""}
       <button class="comments open-comments" type="button">${comments ? `View ${comments} comment${comments === 1 ? "" : "s"}` : "Add a comment"}</button>
-      <time class="time" data-ts="${post.created_at}">${timeLine(post)}</time>
     </article>`;
 }
 
 function renderAll() {
   feedEl.innerHTML = visible().map((post) => card(post)).join("") || emptyFeed();
+  if (!feedDone && posts.size) {
+    feedEl.insertAdjacentHTML("beforeend", `<div id="feed-more" class="feed-more">More posts</div>`);
+  }
   renderStories();
   renderGrids();
   wireCards();
+  watchMore();
 }
 
 function emptyFeed() {
@@ -220,16 +233,69 @@ function renderChrome() {
   renderNotesBadge();
 }
 
+function uniqueStories() {
+  const items = [];
+  const seen = new Set();
+  for (const post of visible()) {
+    const name = post.author?.username || "OP_RETURN_Bot";
+    if (seen.has(name)) continue;
+    seen.add(name);
+    items.push(post);
+  }
+  return items;
+}
+
+function syncStoryArrows() {
+  const row = storiesEl;
+  const left = document.getElementById("story-left");
+  const right = document.getElementById("story-right");
+  if (!row || !left || !right) return;
+  const overflow = row.scrollWidth > row.clientWidth + 8;
+  left.classList.toggle("hidden", !overflow || row.scrollLeft < 8);
+  right.classList.toggle("hidden", !overflow || row.scrollLeft + row.clientWidth >= row.scrollWidth - 8);
+}
+
+function storyGroups() {
+  const groups = [];
+  const seen = new Set();
+  for (const story of liveStories) {
+    const name = story.author?.username;
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    groups.push({
+      author: story.author,
+      items: liveStories.filter((row) => row.author?.username === name),
+    });
+  }
+  return groups;
+}
+
 function renderStories() {
-  const chips = visible().slice(0, 12).map((post, index) => {
+  const groups = storyGroups();
+  const add = me
+    ? `<button class="story-chip add" data-add-story type="button" aria-label="Add a 24-hour story">
+        <div class="story-ring add"><img src="${avatar(me)}" alt=""><i>+</i></div>
+        <span>Your story</span>
+      </button>`
+    : "";
+  const real = groups.map((group, index) => {
+    const seen = seenStories.has(group.author.username) ? " seen" : "";
+    return `
+      <button class="story-chip${seen}" data-story-group="${index}" type="button">
+        <div class="story-ring"><img src="${avatar(group.author)}" alt=""></div>
+        <span>${escapeHtml(group.author.username)}</span>
+      </button>`;
+  }).join("");
+  const fallback = groups.length ? "" : uniqueStories().map((post) => {
     const who = post.author || { username: "OP_RETURN_Bot" };
     return `
-      <button class="story-chip" data-story="${index}" type="button">
-        <div class="story-ring"><img src="${avatar(who)}" alt=""></div>
+      <button class="story-chip activity" data-activity="${escapeHtml(post.id)}" type="button">
+        <div class="story-ring muted"><img src="${avatar(who)}" alt=""></div>
         <span>${escapeHtml(who.username)}</span>
       </button>`;
   }).join("");
-  storiesEl.innerHTML = chips;
+  storiesEl.innerHTML = add + real + fallback;
+  requestAnimationFrame(syncStoryArrows);
 }
 
 function renderGrids() {
@@ -239,7 +305,7 @@ function renderGrids() {
 }
 
 function renderMe() {
-  const ava = me ? avatar(me) : "/logo.png";
+  const ava = me ? avatar(me) : "/logo.png?v=icon5";
   document.getElementById("me-ava").src = ava;
   document.getElementById("nav-ava").src = ava;
   document.getElementById("tab-ava").src = ava;
@@ -261,7 +327,7 @@ function renderSuggested(users) {
       <button class="who-btn" data-user="${escapeHtml(p.username)}" type="button"><img src="${avatar(p)}" alt=""></button>
       <div><strong>${escapeHtml(p.username)}</strong><small>${escapeHtml(p.displayName)}</small></div>
       <button class="follow follow-user" data-user="${escapeHtml(p.username)}" type="button">${p.viewerFollows ? "Following" : "Follow"}</button>
-    </div>`).join("") || `<p class="hint">No other accounts yet. Invite someone to the private beta.</p>`;
+    </div>`).join("") || `<p class="hint">No suggestions yet.</p>`;
 }
 
 function renderNotes() {
@@ -276,6 +342,7 @@ function renderNotes() {
 function noteText(item) {
   if (item.kind === "like") return "liked your post";
   if (item.kind === "comment") return "commented";
+  if (item.kind === "comment_like") return "liked your comment";
   if (item.kind === "follow") return "started following you";
   if (item.kind === "mention") return "mentioned you";
   return item.kind;
@@ -284,9 +351,32 @@ function noteText(item) {
 function wireCards(root = feedEl) {
   root.querySelectorAll(".more").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const span = btn.parentElement.querySelector(".clamp");
-      if (span) span.classList.remove("clamp");
-      btn.remove();
+      const span = btn.parentElement.querySelector(".clamp, .opened");
+      if (!span) return;
+      if (span.classList.contains("clamp")) {
+        span.classList.remove("clamp");
+        span.classList.add("opened");
+        btn.textContent = "less";
+      } else {
+        span.classList.add("clamp");
+        span.classList.remove("opened");
+        btn.textContent = "more";
+      }
+    });
+  });
+  root.querySelectorAll(".media img").forEach((img) => {
+    const markReady = () => {
+      img.classList.add("ready");
+      const wait = img.previousElementSibling;
+      if (wait?.classList.contains("wait")) wait.remove();
+    };
+    img.addEventListener("load", markReady);
+    if (img.complete && img.naturalWidth) markReady();
+    img.addEventListener("error", () => {
+      const wait = document.createElement("div");
+      wait.className = "wait";
+      wait.textContent = "Image unavailable";
+      img.replaceWith(wait);
     });
   });
   root.querySelectorAll(".like").forEach((btn) => {
@@ -316,6 +406,12 @@ function wireCards(root = feedEl) {
       tapMedia(el.closest(".post").dataset.id, el);
     });
   });
+  root.querySelectorAll("[data-chain]").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openChain(btn.dataset.chain);
+    });
+  });
   root.querySelectorAll("[data-user]").forEach((btn) => {
     if (btn.classList.contains("follow-user") || btn.classList.contains("more-btn") || btn.classList.contains("mention")) return;
     btn.addEventListener("click", () => openProfile(btn.dataset.user));
@@ -328,21 +424,43 @@ function wireCards(root = feedEl) {
 async function toggleLike(id) {
   if (!needAuth("Sign in to like a post.")) return;
   const post = posts.get(id);
-  const path = `/api/posts/${encodeURIComponent(id)}/like`;
-  const body = await api(path, { method: post?.liked ? "DELETE" : "POST" });
-  upsert({ ...post, ...body }, false);
+  if (!post) return;
+  const liked = !post.liked;
+  upsert({ ...post, liked, likeCount: Math.max(0, (post.likeCount || 0) + (liked ? 1 : -1)) }, false);
+  try {
+    const body = await api(`/api/posts/${encodeURIComponent(id)}/like`, { method: liked ? "POST" : "DELETE" });
+    upsert({ ...posts.get(id), ...body }, false);
+  } catch (err) {
+    upsert(post, false);
+    toast(err.message);
+  }
 }
 
 async function toggleSave(id) {
   if (!needAuth("Sign in to save a post.")) return;
   const post = posts.get(id);
-  const path = `/api/posts/${encodeURIComponent(id)}/save`;
-  const body = await api(path, { method: post?.saved ? "DELETE" : "POST" });
-  upsert({ ...post, ...body }, false);
+  if (!post) return;
+  const saved = !post.saved;
+  upsert({ ...post, saved }, false);
+  try {
+    const body = await api(`/api/posts/${encodeURIComponent(id)}/save`, { method: saved ? "POST" : "DELETE" });
+    upsert({ ...posts.get(id), ...body }, false);
+  } catch (err) {
+    upsert(post, false);
+    toast(err.message);
+  }
 }
 
 async function sharePost(id) {
   const url = `${location.origin}${location.pathname}#/p/${id}`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: "InstaOp", url });
+      return;
+    } catch (err) {
+      if (err.name === "AbortError") return;
+    }
+  }
   try {
     await navigator.clipboard.writeText(url);
     toast("Link copied");
@@ -412,7 +530,7 @@ function moreMenu(username, postId) {
   const canModerate = Boolean(me && username && username !== me.username && username !== "OP_RETURN_Bot");
   list.innerHTML = `
     <button type="button" data-act="copy">Copy link</button>
-    ${post?.txid ? `<button type="button" data-act="tx">View transaction</button>` : ""}
+    ${post?.txid ? `<button type="button" data-act="tx">On Bitcoin</button>` : ""}
     <button type="button" data-act="profile">View profile</button>
     ${canModerate ? `<button class="danger" type="button" data-act="report">Report</button><button class="danger" type="button" data-act="block">Block</button>` : ""}
     <button type="button" data-act="cancel">Cancel</button>
@@ -429,9 +547,9 @@ function moreMenu(username, postId) {
       await sharePost(postId || "");
       return closeAction();
     }
-    if (act === "tx" && post?.txid) {
-      window.open(`https://mempool.space/tx/${post.txid}`, "_blank", "noopener");
-      return;
+    if (act === "tx" && postId) {
+      closeAction();
+      return openChain(postId);
     }
     if (act === "profile") {
       closeAction();
@@ -471,6 +589,67 @@ function moreMenu(username, postId) {
   };
 }
 
+function openMoreMenu() {
+  const sheet = document.getElementById("action-view");
+  const list = document.getElementById("action-list");
+  list.innerHTML = `
+    <button type="button" data-act="settings">Settings</button>
+    <button type="button" data-act="install">Add to Home Screen</button>
+    <button type="button" data-act="about">About InstaOp</button>
+    <button type="button" data-act="cancel">Cancel</button>`;
+  sheet.classList.remove("hidden");
+  list.onclick = (event) => {
+    const act = event.target.closest("[data-act]")?.dataset.act;
+    if (!act || act === "cancel") return closeAction();
+    closeAction();
+    if (act === "settings") return go("settings");
+    if (act === "install") return promptInstall();
+    if (act === "about") openAbout();
+  };
+}
+
+async function openChain(id) {
+  const post = posts.get(id);
+  if (!post?.txid) return;
+  const body = document.getElementById("chain-body");
+  const status = post.confirmed === true ? "Confirmed" : post.confirmed === false ? "In mempool" : "Unknown";
+  body.innerHTML = `
+    <p class="btc">Bitcoin mainnet</p>
+    <div><dt>Status</dt><dd>${escapeHtml(status)}</dd></div>
+    <div><dt>Transaction</dt><dd>${escapeHtml(post.txid)}</dd></div>
+    <div><dt>Onchain payload</dt><dd>${escapeHtml(post.message || "(binary or image bytes)")}${post.bytes ? ` · ${post.bytes} bytes` : ""}</dd></div>
+    <div><dt>Rendered by InstaOp</dt><dd>${post.artStyle === "mempool" ? "Mempool.space transaction preview. Not the OP_RETURN bytes themselves." : "Generated artwork. The onchain payload is the text or image bytes above."}</dd></div>
+    <p class="hint">A Bitcoin transaction does not identify who paid to publish this message.</p>
+    <div class="row">
+      <button class="ghost" type="button" id="copy-txid">Copy txid</button>
+      <a class="primary" href="https://mempool.space/tx/${escapeHtml(post.txid)}" target="_blank" rel="noopener">Open in mempool.space</a>
+    </div>`;
+  document.getElementById("chain-view").classList.remove("hidden");
+  document.getElementById("copy-txid").onclick = async () => {
+    await navigator.clipboard.writeText(post.txid);
+    toast("Transaction ID copied");
+  };
+  fetch(`https://mempool.space/api/tx/${post.txid}`).then((res) => res.ok ? res.json() : null).then((info) => {
+    if (!info || document.getElementById("chain-view").classList.contains("hidden")) return;
+    const bits = [];
+    if (info.status?.block_height) bits.push(`<div><dt>Block</dt><dd>${info.status.block_height}</dd></div>`);
+    if (info.status?.block_time) bits.push(`<div><dt>Block time</dt><dd>${new Date(info.status.block_time * 1000).toISOString()}</dd></div>`);
+    if (typeof info.fee === "number") {
+      const vbytes = info.weight ? info.weight / 4 : null;
+      const rate = vbytes ? `${(info.fee / vbytes).toFixed(1)} sat/vB` : "";
+      bits.push(`<div><dt>Fee</dt><dd>${info.fee} sats${rate ? ` · ${rate}` : ""}</dd></div>`);
+    }
+    if (!bits.length) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = bits.join("");
+    body.insertBefore(wrap, body.querySelector(".hint"));
+  }).catch(() => {});
+}
+
+function closeChain() {
+  document.getElementById("chain-view").classList.add("hidden");
+}
+
 async function openPeople(kind) {
   const title = kind === "following" ? "Following" : "Followers";
   document.getElementById("people-title").textContent = title;
@@ -492,16 +671,29 @@ async function openPeople(kind) {
 async function openComments(id) {
   openCommentsId = id;
   const data = await api(`/api/posts/${encodeURIComponent(id)}/comments`);
-  document.getElementById("comments-list").innerHTML = data.comments.map((row) => `
-    <p class="comment"><b>${escapeHtml(row.author.username)}</b> ${linkify(row.body)}
-    ${me && row.author.username === me.username ? `<button data-del="${row.id}" type="button">delete</button>` : ""}</p>`).join("") || `<p class="empty">No comments yet.</p>`;
+  const rows = data.comments || [];
+  document.getElementById("comments-list").innerHTML = rows.map((row) => `
+    <p class="comment${row.parentId ? " reply-row" : ""}"><b>${escapeHtml(row.author.username)}</b> ${linkify(row.body)}
+    <small>${timeAgo(row.createdAt)}</small>
+    ${me ? `<button class="reply" data-reply="${row.id}" data-name="${escapeHtml(row.author.username)}" type="button">Reply</button>` : ""}
+    <button class="comment-like${row.liked ? " liked" : ""}" data-like-comment="${row.id}" type="button" aria-label="Like comment">♥ <em>${row.likeCount || ""}</em></button>
+    ${me && row.author.username === me.username ? `<button data-del="${row.id}" type="button">delete</button>` : ""}</p>`).join("") || `<p class="empty">No comments yet. Comments stay offchain.</p>`;
   document.getElementById("comments-view").classList.remove("hidden");
   document.getElementById("comment-form").classList.toggle("hidden", !me);
+  const input = document.getElementById("comment-input");
+  if (me) input.focus();
   document.getElementById("comments-list").querySelectorAll(".mention").forEach((btn) => {
     btn.addEventListener("click", () => openProfile(btn.dataset.user));
   });
   document.getElementById("comments-list").querySelectorAll("[data-tag]").forEach((btn) => {
     btn.addEventListener("click", () => openTag(btn.dataset.tag));
+  });
+  document.getElementById("comments-list").querySelectorAll("[data-reply]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      replyTo = btn.dataset.reply;
+      input.placeholder = `Reply to @${btn.dataset.name}`;
+      input.focus();
+    });
   });
   document.getElementById("comments-list").querySelectorAll("[data-del]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -509,6 +701,34 @@ async function openComments(id) {
       openComments(id);
     });
   });
+  document.getElementById("comments-list").querySelectorAll("[data-like-comment]").forEach((btn) => {
+    btn.addEventListener("click", () => toggleCommentLike(btn.dataset.likeComment));
+  });
+}
+
+async function toggleCommentLike(id) {
+  if (!needAuth("Sign in to like a comment.")) return;
+  const btn = document.querySelector(`[data-like-comment="${CSS.escape(id)}"]`);
+  const liked = btn?.classList.contains("liked");
+  if (btn) {
+    btn.classList.toggle("liked", !liked);
+    const next = Math.max(0, (Number(btn.querySelector("em")?.textContent || 0) || 0) + (liked ? -1 : 1));
+    if (btn.querySelector("em")) btn.querySelector("em").textContent = next || "";
+  }
+  try {
+    const body = await api(`/api/comments/${encodeURIComponent(id)}/like`, { method: liked ? "DELETE" : "POST" });
+    if (btn) {
+      btn.classList.toggle("liked", body.liked);
+      if (btn.querySelector("em")) btn.querySelector("em").textContent = body.likeCount || "";
+    }
+  } catch (err) {
+    if (btn) {
+      btn.classList.toggle("liked", liked);
+      const next = Math.max(0, (Number(btn.querySelector("em")?.textContent || 0) || 0) + (liked ? 1 : -1));
+      if (btn.querySelector("em")) btn.querySelector("em").textContent = next || "";
+    }
+    toast(err.message);
+  }
 }
 
 function openTag(tag) {
@@ -530,7 +750,7 @@ async function loadExplore() {
   rail.querySelectorAll("[data-tag]").forEach((btn) => {
     btn.addEventListener("click", () => openTag(btn.dataset.tag));
   });
-  const feed = await api("/api/feed?tab=live");
+  const feed = await api("/api/feed?tab=live&limit=40");
   feed.posts.forEach((post) => posts.set(post.id, post));
   renderAll();
 }
@@ -539,6 +759,10 @@ function go(view, extra) {
   closeAction();
   closePeople();
   if (view !== "create") closePost();
+  if (view === "more") {
+    openMoreMenu();
+    return;
+  }
   searchView.classList.toggle("hidden", view !== "explore");
   profileView.classList.toggle("hidden", view !== "profile");
   notesView.classList.toggle("hidden", view !== "notifications");
@@ -549,8 +773,9 @@ function go(view, extra) {
   document.getElementById("tab-home").classList.toggle("on", view === "home");
   document.getElementById("tab-live").classList.toggle("on", view === "live");
   if (view === "home" || view === "live") {
+    feedScroll[feedTab] = window.scrollY;
     feedTab = view;
-    loadFeed();
+    loadFeed().then(() => window.scrollTo(0, feedScroll[view] || 0));
     history.replaceState(null, "", view === "live" ? "#/live" : "#/");
   }
   if (view === "explore") {
@@ -577,6 +802,18 @@ function openModal(id) {
 
 function closeModal(id) {
   document.getElementById(id).classList.add("hidden");
+}
+
+function openAbout() {
+  closeAction();
+  openModal("about-view");
+  history.replaceState(null, "", "#/about");
+  document.getElementById("about-close")?.focus();
+}
+
+function closeAbout() {
+  closeModal("about-view");
+  if (location.hash === "#/about") history.replaceState(null, "", "#/");
 }
 
 async function openProfile(username) {
@@ -623,9 +860,11 @@ async function openProfile(username) {
     ? `<button class="ghost" data-go="settings" type="button">Edit profile</button>`
     : "";
   const gridPosts = profileMode === "saved" && mine ? (await api("/api/saved")).posts : data.posts;
-  profileGrid.innerHTML = gridPosts.map((post) =>
-    `<button type="button" data-id="${post.id}">${post.imageUrl ? `<img src="${post.imageUrl}" alt="">` : `<div class="ph"></div>`}</button>`
-  ).join("");
+  profileGrid.innerHTML = gridPosts.length
+    ? gridPosts.map((post) =>
+      `<button type="button" data-id="${post.id}">${post.imageUrl ? `<img src="${post.imageUrl}" alt="">` : `<div class="ph"></div>`}</button>`
+    ).join("")
+    : `<div class="empty-box"><h3>No posts yet</h3><p>Confirmed OP_RETURN posts show up here.</p></div>`;
   document.querySelector("#profile-actions [data-go]")?.addEventListener("click", () => go("settings"));
 }
 
@@ -639,16 +878,23 @@ function openSettings() {
   history.replaceState(null, "", "#/settings");
 }
 
+function markStorySeen(username) {
+  if (!username) return;
+  seenStories.add(username);
+  try { sessionStorage.setItem("instaop-seen-stories", JSON.stringify([...seenStories])); } catch { /* ignore */ }
+}
+
 function showStory() {
-  const items = visible();
+  const items = storyItems;
   if (!items.length) return;
   storyIndex = (storyIndex + items.length) % items.length;
   const post = items[storyIndex];
   const who = post.author || { username: "OP_RETURN_Bot" };
+  markStorySeen(who.username);
   document.getElementById("story-image").src = post.imageUrl || avatar(who);
   document.getElementById("story-user").textContent = who.username;
-  document.getElementById("story-caption").textContent = post.message;
-  document.getElementById("story-progress").innerHTML = items.slice(0, 12).map((_, i) =>
+  document.getElementById("story-caption").textContent = post.caption || post.message || (post.ephemeral ? "24-hour story · not on Bitcoin" : "");
+  document.getElementById("story-progress").innerHTML = items.map((_, i) =>
     `<i class="${i < storyIndex ? "done" : i === storyIndex ? "active" : ""}"><em></em></i>`
   ).join("");
   viewer.classList.remove("hidden");
@@ -673,13 +919,47 @@ async function loadMe() {
   renderNotesBadge();
 }
 
-async function loadFeed() {
-  if (!posts.size) feedEl.innerHTML = skeletonFeed();
+async function loadFeed({ more = false } = {}) {
+  if (feedLoading) return;
+  if (more && (feedDone || !feedCursor)) return;
+  feedLoading = true;
+  if (!more) {
+    feedCursor = null;
+    feedDone = false;
+    if (!posts.size) feedEl.innerHTML = skeletonFeed();
+  }
   const tab = feedTab === "home" && me ? "home" : "live";
-  const data = await api(`/api/feed?tab=${tab}`);
-  posts.clear();
-  data.posts.forEach((post) => posts.set(post.id, post));
-  renderAll();
+  const before = more && feedCursor ? `&before=${feedCursor}` : "";
+  try {
+    const data = await api(`/api/feed?tab=${tab}&limit=20${before}`);
+    if (!more) posts.clear();
+    (data.posts || []).forEach((post) => posts.set(post.id, post));
+    feedCursor = data.nextBefore || null;
+    feedDone = !data.nextBefore;
+    renderAll();
+  } finally {
+    feedLoading = false;
+  }
+}
+
+function watchMore() {
+  const el = document.getElementById("feed-more");
+  if (moreObs) moreObs.disconnect();
+  if (!el) return;
+  moreObs = new IntersectionObserver((entries) => {
+    if (entries.some((entry) => entry.isIntersecting)) loadFeed({ more: true });
+  }, { rootMargin: "320px" });
+  moreObs.observe(el);
+}
+
+async function loadStories() {
+  try {
+    const data = await api("/api/stories");
+    liveStories = data.stories || [];
+  } catch {
+    liveStories = [];
+  }
+  renderStories();
 }
 
 async function loadNotes(mark) {
@@ -699,25 +979,46 @@ function showError(err) {
   box.classList.remove("hidden");
 }
 
-async function boot() {
-  await loadMe();
+function applyRoute() {
   const route = location.hash.slice(1);
-  if (route.startsWith("/u/")) profileUser = route.slice(3);
-  if (route === "/live") feedTab = "live";
-  await loadFeed();
-  api("/api/suggested").then((data) => renderSuggested(data.users)).catch(() => {});
-  const status = await api("/api/status");
-  liveBadge.classList.toggle("on", status.live);
-  if (route.startsWith("/u/")) openProfile(profileUser);
+  if (route.startsWith("/u/")) {
+    openProfile(decodeURIComponent(route.slice(3)));
+    return;
+  }
   if (route.startsWith("/tag/")) {
     filterTag = decodeURIComponent(route.slice(5));
     searchInput.value = `#${filterTag}`;
     go("explore");
+    return;
   }
-  if (route === "/explore") go("explore");
-  if (route === "/notifications") go("notifications");
-  if (route === "/settings") go("settings");
-  if (route.startsWith("/p/")) openPost(route.slice(3));
+  if (route === "/explore") return go("explore");
+  if (route === "/notifications") return go("notifications");
+  if (route === "/settings") return go("settings");
+  if (route === "/live") return go("live");
+  if (route.startsWith("/p/")) return openPost(route.slice(3));
+  if (route === "/create") return go("create");
+  if (route === "/about") return openAbout();
+  if (!route || route === "/") {
+    searchView.classList.add("hidden");
+    profileView.classList.add("hidden");
+    notesView.classList.add("hidden");
+    settingsView.classList.add("hidden");
+    document.getElementById("tab-home").classList.add("on");
+    document.getElementById("tab-live").classList.remove("on");
+  }
+}
+
+async function boot() {
+  await loadMe();
+  const route = location.hash.slice(1);
+  if (route === "/live") feedTab = "live";
+  await loadFeed();
+  loadStories();
+  api("/api/suggested").then((data) => renderSuggested(data.users)).catch(() => {});
+  const status = await api("/api/status");
+  liveBadge.classList.toggle("on", status.live);
+  applyRoute();
+  window.addEventListener("hashchange", applyRoute);
   const src = new EventSource("/api/stream");
   let opened = false;
   src.onmessage = (event) => {
@@ -751,11 +1052,44 @@ document.getElementById("story-next").addEventListener("click", () => { storyInd
 document.querySelectorAll("[data-go]").forEach((el) => {
   el.addEventListener("click", () => go(el.dataset.go));
 });
+document.getElementById("story-left")?.addEventListener("click", () => {
+  storiesEl.scrollBy({ left: -200, behavior: "smooth" });
+});
+document.getElementById("story-right")?.addEventListener("click", () => {
+  storiesEl.scrollBy({ left: 200, behavior: "smooth" });
+});
+storiesEl.addEventListener("scroll", syncStoryArrows, { passive: true });
 storiesEl.addEventListener("click", (event) => {
-  const chip = event.target.closest("[data-story]");
-  if (!chip) return;
-  storyIndex = Number(chip.dataset.story);
-  showStory();
+  if (event.target.closest("[data-add-story]")) {
+    if (!needAuth("Sign in to publish a 24-hour story.")) return;
+    document.getElementById("story-file")?.click();
+    return;
+  }
+  const group = event.target.closest("[data-story-group]");
+  if (group) {
+    storyItems = storyGroups()[Number(group.dataset.storyGroup)]?.items || [];
+    storyIndex = 0;
+    showStory();
+    return;
+  }
+  const activity = event.target.closest("[data-activity]");
+  if (activity) openPost(activity.dataset.activity);
+});
+document.getElementById("story-file")?.addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  const data = new FormData();
+  data.append("photo", file);
+  try {
+    const res = await fetch("/api/stories", { method: "POST", body: data, credentials: "same-origin" });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || "Could not publish story");
+    toast("Story is up for 24 hours. It is not written to Bitcoin.");
+    await loadStories();
+  } catch (err) {
+    toast(err.message);
+  }
 });
 searchGrid.addEventListener("click", (e) => {
   const cell = e.target.closest("[data-id]");
@@ -797,6 +1131,7 @@ document.getElementById("action-view").addEventListener("click", (event) => {
   if (event.target.id === "action-view") closeAction();
 });
 document.getElementById("people-close").addEventListener("click", closePeople);
+document.getElementById("chain-close").addEventListener("click", closeChain);
 document.getElementById("stat-followers-btn").addEventListener("click", () => openPeople("followers"));
 document.getElementById("stat-following-btn").addEventListener("click", () => openPeople("following"));
 document.addEventListener("keydown", (event) => {
@@ -807,14 +1142,22 @@ document.addEventListener("keydown", (event) => {
   }
   if (!document.getElementById("action-view").classList.contains("hidden")) return closeAction();
   if (!document.getElementById("people-view").classList.contains("hidden")) return closePeople();
+  if (!document.getElementById("chain-view").classList.contains("hidden")) return closeChain();
   if (!document.getElementById("comments-view").classList.contains("hidden")) {
     document.getElementById("comments-view").classList.add("hidden");
     return;
   }
   if (!document.getElementById("post-view").classList.contains("hidden")) return closePost();
   if (!document.getElementById("story-viewer").classList.contains("hidden")) return closeStory();
+  if (!document.getElementById("about-view").classList.contains("hidden")) return closeAbout();
   if (!document.getElementById("auth-view").classList.contains("hidden")) return closeModal("auth-view");
   go("home");
+});
+document.getElementById("about-close").addEventListener("click", closeAbout);
+document.getElementById("about-done").addEventListener("click", closeAbout);
+document.getElementById("about-link")?.addEventListener("click", openAbout);
+document.getElementById("about-view").addEventListener("click", (event) => {
+  if (event.target.id === "about-view") closeAbout();
 });
 document.getElementById("me-switch").addEventListener("click", () => {
   if (me) go("settings");
@@ -846,6 +1189,7 @@ document.getElementById("auth-form").addEventListener("submit", async (event) =>
     closeModal("auth-view");
     renderMe();
     loadFeed();
+    loadStories();
     api("/api/suggested").then((row) => renderSuggested(row.users));
   } catch (err) {
     showError(err);
@@ -876,9 +1220,11 @@ document.getElementById("comment-form").addEventListener("submit", async (event)
   const input = document.getElementById("comment-input");
   const data = await api(`/api/posts/${encodeURIComponent(openCommentsId)}/comments`, {
     method: "POST",
-    body: JSON.stringify({ body: input.value }),
+    body: JSON.stringify({ body: input.value, parentId: replyTo }),
   });
   input.value = "";
+  input.placeholder = "Add a comment…";
+  replyTo = null;
   const post = posts.get(openCommentsId);
   if (post) upsert({ ...post, ...data }, false);
   openComments(openCommentsId);

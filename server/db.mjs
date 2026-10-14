@@ -2,7 +2,8 @@ import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
+export const STORY_TTL_SEC = 24 * 60 * 60;
 export const OPRETURN_USERNAME = "OP_RETURN_Bot";
 export const OPRETURN_PUBLISHER = "OP_RETURN Bo";
 export const OPRETURN_WEBSITE = "https://opreturnbot.com";
@@ -159,6 +160,22 @@ const MIGRATIONS = [
   `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_identities_user ON identities(user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_pub_user ON publication_requests(user_id, updated_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS comment_likes (
+    user_id TEXT NOT NULL REFERENCES users(id),
+    comment_id TEXT NOT NULL REFERENCES comments(id),
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, comment_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS stories (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    image_path TEXT NOT NULL,
+    caption TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_comment_likes_comment ON comment_likes(comment_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_stories_expires ON stories(expires_at, created_at DESC)`,
 ];
 
 const EXTRA_COLUMNS = [
@@ -190,6 +207,7 @@ export function openDatabase(dataDir) {
   mkdirSync(join(dataDir, "avatars"), { recursive: true });
   mkdirSync(join(dataDir, "images"), { recursive: true });
   mkdirSync(join(dataDir, "drafts"), { recursive: true });
+  mkdirSync(join(dataDir, "stories"), { recursive: true });
   const db = new Database(join(dataDir, "social.sqlite"));
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");

@@ -121,7 +121,7 @@
     $("co-queue").innerHTML = data.drafts.map((item) => `
       <button class="queue-item" data-draft="${item.id}" type="button">
         <strong>${escape(item.statement || item.kind)}</strong>
-        <small>${item.status} · ${item.byteCount.toLocaleString()} bytes</small>
+        <small>${statusLabel(item.status)} · ${item.byteCount.toLocaleString()} bytes</small>
       </button>`).join("") || `<p class="hint">No drafts yet. Nothing here is on Bitcoin.</p>`;
     $("co-queue").querySelectorAll("[data-draft]").forEach((btn) => {
       btn.addEventListener("click", () => openDraft(btn.dataset.draft));
@@ -236,13 +236,27 @@
       : "Invoice is from OP_RETURN Bot. This draft stays private until the transaction confirms.";
   }
 
+  function statusLabel(status) {
+    return {
+      draft: "Draft",
+      ready: "Awaiting authorization",
+      pending_payment: "Awaiting payment",
+      paid: "Broadcasting",
+      broadcast: "Pending confirmation",
+      confirmed: "Confirmed",
+      expired: "Expired",
+      failed: "Failed",
+    }[status] || status;
+  }
+
   function statusText(row) {
     if (row.status === "pending_payment") return "Waiting for Lightning payment…";
     if (row.status === "paid") return "Paid. Waiting for the bot to broadcast…";
     if (row.status === "broadcast") return "Broadcast. Waiting for a Bitcoin confirmation…";
     if (row.status === "confirmed") return "Confirmed on Bitcoin.";
     if (row.status === "expired") return "Invoice expired. Pay again to get a new one.";
-    return row.status;
+    if (row.status === "failed") return row.lastError || "Publishing failed.";
+    return statusLabel(row.status);
   }
 
   function startPoll() {

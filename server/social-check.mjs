@@ -91,6 +91,16 @@ try {
   assert(sw.ok && (await sw.text()).includes("instaop-shell"), "service worker");
   const brand = await fetch(`${base}/icon-512.png`);
   assert(brand.ok && brand.headers.get("content-type")?.includes("png"), "pwa icon");
+  const landing = await fetch(`${base}/`);
+  const landingHtml = await landing.text();
+  assert(landingHtml.includes("styles.css?v=ig5"), "ui css is cache-busted");
+  const cssRes = await fetch(`${base}/styles.css?v=ig5`);
+  const cssText = await cssRes.text();
+  assert(cssText.includes("min-width: 0") && cssText.includes("object-fit: contain"), "responsive feed constraints");
+  assert(landingHtml.includes("chain-view") && landingHtml.includes("data-go=\"more\""), "onchain panel and more nav");
+  assert(landingHtml.includes("about-view") && landingHtml.includes("TabConf 8"), "about modal");
+  const appJs = await (await fetch(`${base}/app.js?v=ig5`)).text();
+  assert(appJs.includes("function uniqueStories") && appJs.includes("if (seen.has(name)) continue"), "stories are unique accounts");
 
   const tags = await req("/api/tags");
   assert(tags.body.tags.some((row) => row.tag === "OP_RETURN" && row.count >= 1), "hashtag explorer");
@@ -165,6 +175,34 @@ try {
   });
   assert(commented.body.commentCount === 1, "comment count is real");
   const commentId = commented.body.comments[0].id;
+  const guestCommentLike = await req(`/api/comments/${commentId}/like`, { method: "POST", body: "{}" });
+  assert(guestCommentLike.res.status === 401, "guest cannot like comments");
+  const likedComment = await req(`/api/comments/${commentId}/like`, { method: "POST", body: "{}", headers: { cookie: aliceCookie } });
+  assert(likedComment.body.liked === true && likedComment.body.likeCount === 1, "comment like persists");
+  const likedCommentAgain = await req(`/api/comments/${commentId}/like`, { method: "POST", body: "{}", headers: { cookie: aliceCookie } });
+  assert(likedCommentAgain.body.likeCount === 1, "duplicate comment like does not inflate");
+  const unlikedComment = await req(`/api/comments/${commentId}/like`, { method: "DELETE", headers: { cookie: aliceCookie } });
+  assert(unlikedComment.body.liked === false && unlikedComment.body.likeCount === 0, "comment unlike persists");
+
+  const guestStory = await req("/api/stories", { method: "POST", body: "{}" });
+  assert(guestStory.res.status === 401 || guestStory.res.status === 400, "guest cannot publish stories");
+  const emptyStories = await req("/api/stories");
+  assert(Array.isArray(emptyStories.body.stories) && emptyStories.body.stories.length === 0, "no fake stories");
+  const form = new FormData();
+  form.append("photo", new Blob([fakePreview], { type: "image/png" }), "story.png");
+  form.append("caption", "tabconf night");
+  const story = await fetch(`${base}/api/stories`, { method: "POST", headers: { cookie: aliceCookie }, body: form });
+  const storyBody = await story.json();
+  assert(story.status === 201 && storyBody.story?.ephemeral === true && storyBody.story.onchain === false, "story is offchain");
+  const listed = await req("/api/stories");
+  assert(listed.body.stories.some((row) => row.id === storyBody.story.id), "story lists while live");
+  assert(listed.body.note.includes("not written to Bitcoin"), "story honesty");
+  const media = await fetch(`${base}${storyBody.story.imageUrl}`);
+  assert(media.ok, "story media");
+
+  const page = await req("/api/feed?tab=live&limit=1");
+  assert(page.body.posts.length === 1, "feed page size");
+  assert("nextBefore" in page.body, "feed pagination cursor");
 
   const steal = await req(`/api/comments/${commentId}`, { method: "DELETE", headers: { cookie: bobCookie } });
   assert(steal.res.status === 403, "bob cannot delete alice comment");
