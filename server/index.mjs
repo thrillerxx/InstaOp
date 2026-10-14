@@ -6,6 +6,11 @@ import { createStore, publicPost } from "./store.mjs";
 import { classifyArt, composeVoice, hashSeed, inspectMessage } from "./captions.mjs";
 import { renderArtwork } from "./art.mjs";
 import { lookupConfirmed, startIngest } from "./nostr.mjs";
+import { sendNostrOtp } from "./nostr-otp.mjs";
+import { verifyOtp } from "./otp-store.mjs";
+import { createSession, verifySession, destroySession, parseCookie, SESSION_MAX_AGE_SECONDS } from "./session.mjs";
+import { rateLimit } from "./rate-limit.mjs";
+import { DEFAULT_RELAYS, SESSION_COOKIE } from "./nostr-config.mjs";
 
 const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 const publicDir = join(root, "public");
@@ -143,6 +148,40 @@ function listPosts(url) {
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://instaop.local");
+
+  // --- Nostr OTP auth (ported from livingry-ops PWA livingry-ops.livingry.services) ---
+  if (url.pathname === "/api/auth/relays" && req.method === "GET") {
+    return sendJson(res, 200, { options: DEFAULT_RELAYS, selected: DEFAULT_RELAYS.map(r=>r.id) });
+  }
+  if (url.pathname === "/api/auth/send" && req.method === "POST") {
+    const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "unknown";
+    const rl = rateLimit(`otp:send:${ip}`, { limit: 5, windowMs: 60*60*1000 });
+    if (!rl.allowed) return sendJson(res, 429, { ok: false, error: `Too many requests. Try again in ${rl.retryAfterSec}s.` });
+    let body={}; try { body = JSON.parse((await readBody(req))||"{}"); } catch {}
+    const result = await sendNostrOtp({ npub: body.npub, relayUrls: body.relayUrls });
+    if (!result.ok) return sendJson(res, result.status || 400, { ok: false, error: result.error });
+    return sendJson(res, 200, { ok: true, sessionKey: result.sessionKey, relaysAttempted: result.relaysAttempted, relaysSucceeded: result.relaysSucceeded });
+  }
+  if (url.pathname === "/api/auth/verify" && req.method === "POST") {
+    let body={}; try { body = JSON.parse((await readBody(req))||"{}"); } catch {}
+    const { sessionKey, code } = body;
+    if (!sessionKey || !code) return sendJson(res, 400, { ok: false, error: "Missing sessionKey or code." });
+    const v = verifyOtp(String(sessionKey), String(code));
+    if (!v.ok) return sendJson(res, 401, { ok: false, error: v.reason });
+    const session = createSession(null);
+    res.setHeader("Set-Cookie", `${SESSION_COOKIE}=${session.cookieValue}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}`);
+    return sendJson(res, 200, { ok: true });
+  }
+  if (url.pathname === "/api/auth/session" && req.method === "GET") {
+    const granted = verifySession(parseCookie(req.headers.cookie||"", SESSION_COOKIE)) !== null;
+    return sendJson(res, 200, { granted });
+  }
+  if (url.pathname === "/api/auth/session" && req.method === "DELETE") {
+    const c = parseCookie(req.headers.cookie||"", SESSION_COOKIE);
+    destroySession(c);
+    res.setHeader("Set-Cookie", `${SESSION_COOKIE}=; Path=/; Max-Age=0`);
+    return sendJson(res, 200, { ok: true });
+  }
 
   if (url.pathname === "/api/feed") {
     return sendJson(res, 200, {
